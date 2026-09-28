@@ -1,0 +1,121 @@
+# Render Blueprint — AgriGPT backend API (recreate after service deletion)
+# Import: Render Dashboard → New → Blueprint → point at this file (or the repo).
+# Secrets marked `sync: false` are prompted for at deploy time and never committed.
+services:
+  - type: web
+    name: agrigpt-api-v2-hkxu
+    runtime: python
+    repo: https://github.com/Yashwanthgaddi57/FarmGPT
+    branch: main
+    plan: free
+    region: singapore          # closest region to India on Render's free tier
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # Single worker: the free tier has 512 MB, and APScheduler must run exactly
+    # once — multiple workers would duplicate alert notifications.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      # ── Runtime ──
+      - key: PYTHON_VERSION
+        value: "3.12.10"
+      - key: ENVIRONMENT
+        value: production
+      - key: API_V1_PREFIX
+        value: /api/v1
+      - key: BACKEND_CORS_ORIGINS
+        # pydantic-settings parses complex fields as JSON — must be an array.
+        value: '["https://agrigpt-web-v2.onrender.com", "http://localhost:3000"]'
+      - key: FRONTEND_APP_URL
+        value: https://agrigpt-web-v2.onrender.com
+      # ── Supabase ──
+      # CRITICAL: use the Transaction POOLER URI (port 6543). The direct
+      # db.<ref>.supabase.co host is IPv6-only and unreachable from Render:
+      # postgresql+psycopg://postgres.<PROJECT_REF>:PASSWORD@aws-0-<REGION>.pooler.supabase.com:6543/postgres
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false            # REQUIRED — without this, signup falls back to the
+                               # email-confirmation path and hits Supabase's free-tier
+                               # email rate limit. Paste the Secret key from
+                               # Supabase Dashboard → Settings → API.
+      - key: SUPABASE_JWT_SECRET
+        sync: false            # optional; JWT verification falls back to JWKS
+      - key: SUPABASE_DB_URL
+        sync: false            # secret (contains DB password) — prompted at deploy
+      # ── AI (Bedrock) ──
+      - key: AI_PROVIDER
+        value: bedrock
+      - key: BEDROCK_API_KEY
+        sync: false            # secret — prompted at deploy
+      - key: BEDROCK_REGION
+        value: us-east-1
+      - key: BEDROCK_MODEL_ID
+        value: us.anthropic.claude-sonnet-5
+      - key: AI_MAX_TOKENS
+        value: "4096"
+      - key: AI_TEMPERATURE
+        value: "0.2"
+      # ── Optional providers ──
+      - key: OPENWEATHER_API_KEY
+        sync: false            # optional — Open-Meteo works without a key
+      - key: RESEND_API_KEY
+        sync: false            # optional — email notifications
+      - key: DATA_GOV_API_KEY
+        # data.gov.in public trial key for live Agmarknet prices.
+        # Replace with your own: https://data.gov.in/user/register
+        value: 579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b
+      # ── Observability / web push (optional, off when empty) ──
+      - key: SENTRY_DSN
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:support@agrigpt.app
+      # ── Background alerts ──
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: SCHEDULER_INTERVAL_MINUTES
+        value: "30"
+      # Redis is optional (in-process cache fallback is automatic). Add a free
+      # Redis later and set REDIS_URL to share cache + rate limits.
+      - key: REDIS_URL
+        sync: false
+
+  # ── Frontend (Next.js 15) ──
+  - type: web
+    name: agrigpt-web-v2
+    runtime: node
+    repo: https://github.com/Yashwanthgaddi57/FarmGPT
+    branch: main
+    plan: free
+    region: singapore
+    rootDir: frontend
+    # next.config.mjs uses output:"standalone" — copy static assets into the
+    # standalone bundle and boot the canonical standalone server.
+    buildCommand: "npm install && npm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static"
+    startCommand: node .next/standalone/server.js
+    healthCheckPath: /
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: HOSTNAME
+        value: 0.0.0.0
+      # NEXT_PUBLIC_* vars are inlined at BUILD time — values are prompted
+      # before the first build (sync:false).
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      # Backend base URL — the live API service (no /api/v1 suffix).
+      - key: NEXT_PUBLIC_API_URL
+        value: https://farmgpt-2.onrender.com
+      # This frontend's own URL — used for OAuth redirect targets.
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://agrigpt-web-v2.onrender.com

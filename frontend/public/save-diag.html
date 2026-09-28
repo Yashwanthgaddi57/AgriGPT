@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>AgriGPT save diagnostic</title>
+<style>body{font-family:monospace;background:#111;color:#0f0;padding:16px;white-space:pre-wrap}</style>
+</head>
+<body>
+<div id="log"></div>
+<script>
+const API = "https://agrigpt-api-v2.onrender.com";
+const log = (m) => document.getElementById("log").textContent += m + "\n";
+
+async function run() {
+  log("1) health check...");
+  try {
+    const r = await fetch(API + "/health");
+    log("   health: " + r.status + " " + (await r.text()).slice(0, 60));
+  } catch (e) { log("   health FAILED: " + e.message); return; }
+
+  log("2) login...");
+  let token;
+  try {
+    const r = await fetch(API + "/api/v1/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "yashwanthgaddi57@gmail.com", password: "AgriFarm@2026" }),
+    });
+    log("   login: " + r.status);
+    token = (await r.json()).access_token;
+  } catch (e) { log("   login FAILED: " + e.message); return; }
+
+  log("3) PATCH /profile (the save call)...");
+  try {
+    const r = await fetch(API + "/api/v1/profile", {
+      method: "PATCH",
+      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Yashwanth Gaddi", phone: "6281781459", state: "Telangana",
+        district: "Hanmakonda", village: "Shodeshapelli", farm_size_acres: 3.5,
+        soil_type: "black", water_availability: "canal" }),
+    });
+    log("   save: " + r.status + (r.ok ? "  ✅ THE API WORKS FROM YOUR BROWSER" : "  body: " + (await r.text()).slice(0, 200)));
+  } catch (e) { log("   save FAILED: " + e.message); }
+
+  log("4) service worker state:");
+  if (navigator.serviceWorker) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    log("   registrations on this origin: " + regs.length);
+    for (const reg of regs) log("   - scope: " + reg.scope);
+    const keys = await caches.keys();
+    log("   caches: " + JSON.stringify(keys));
+  } else log("   none");
+}
+run();
+</script>
+</body>
+</html>

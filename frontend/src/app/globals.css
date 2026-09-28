@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Mercury in light mode: near-white canvas, white cards, ink text */
+    --background: 240 25% 98%;        /* canvas #f7f7fa */
+    --foreground: 240 12% 13%;        /* ink #1c1c24 */
+    --card: 0 0% 100%;                /* white cards */
+    --card-foreground: 240 12% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 12% 13%;
+    --primary: 142 72% 29%;           /* leaf accent, darkened for white text */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 14% 93%;         /* light gray fill #ececf1 */
+    --secondary-foreground: 240 12% 13%;
+    --muted: 240 14% 93%;
+    --muted-foreground: 240 6% 42%;   /* mid gray #64646e */
+    --accent: 240 14% 93%;            /* hover surfaces stay neutral */
+    --accent-foreground: 240 12% 13%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 14% 89%;            /* mist hairline #e0e0e8 */
+    --input: 240 12% 84%;
+    --ring: 142 72% 29%;              /* leaf — focus follows the accent */
+    --radius: 0.75rem;                /* 12px — Mercury card radius */
+
+    /* Apple system type: SF Pro Text (body) / SF Pro Display (headings).
+       True SF renders on Apple devices; graceful fallbacks elsewhere. */
+    --font-arcadia: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+    --font-arcadiadisplay: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  }
+
+  /* Light theme is the only theme; .dark mirrors it so any stray
+     `dark:` class or legacy toggle stays harmless. */
+  .dark {
+    --background: 240 25% 98%;
+    --foreground: 240 12% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 12% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 12% 13%;
+    --primary: 142 72% 29%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 14% 93%;
+    --secondary-foreground: 240 12% 13%;
+    --muted: 240 14% 93%;
+    --muted-foreground: 240 6% 42%;
+    --accent: 240 14% 93%;
+    --accent-foreground: 240 12% 13%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 14% 89%;
+    --input: 240 12% 84%;
+    --ring: 142 72% 29%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  /* Accent gradient — leaf, darkened stops so it reads on white. */
+  .text-gradient {
+    @apply bg-gradient-to-r from-leaf-700 via-leaf-600 to-leaf-500 bg-clip-text text-transparent;
+  }
+  /* Frosted light glass for nav overlays (Mercury backdrop-blur pattern). */
+  .glass {
+    @apply bg-background/70 backdrop-blur-xl border border-border/60;
+  }
+  .grid-pattern {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.6) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.6) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  /* Subtle tap scale for buttons on touch devices (prompt §5: 1 → 0.98). */
+  .tap-subtle {
+    transition: transform 0.1s ease-out, box-shadow 0.18s ease-out;
+  }
+  .tap-subtle:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  /* Voice recording: a soft breathing ring, NOT aggressive pulsing (§8). */
+  .voice-active {
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.18);
+    transition: box-shadow 0.4s ease;
+  }
+  /* Thinking dots — three subtle dots, no spin (§8). */
+  .thinking-dots span {
+    animation: thinkDot 1.1s ease-in-out infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.16s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.32s; }
+  @keyframes thinkDot {
+    0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-3px); }
+  }
+}
+
+/* Respect users who disable motion (prompt §36). framer-motion also honors
+   this via its `reduceMotion` config, but raw CSS animations must be
+   paused too so they don't fire on devices set to "reduce motion". */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .thinking-dots span { animation: none !important; }
+}

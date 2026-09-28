@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.venv2/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+.env.*.local
+.env.production
+.env.*.production
+
+# DB / volumes
+pgdata/
+redisdata/
+*.db
+*.sqlite3
+backend/.local_jwt_secret
+backend/.local_set_password.txt
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+dist/
+
+# Agent scratch / local tooling artifacts (screenshots, git bundles)
+.freebuff/

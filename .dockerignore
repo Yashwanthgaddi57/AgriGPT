@@ -1,0 +1,20 @@
+# Keep the backend image small and clean
+frontend
+backend/.venv
+backend/.pytest_cache
+backend/__pycache__
+backend/agrisphere_local.db
+backend/agrisphere_local.db-journal
+backend/.local_jwt_secret
+backend/.local_set_password.txt
+backend/*.log
+.git
+.github
+.kilo
+.vscode
+docs
+node_modules
+*.log
+.env
+.env.*
+!.env.example
