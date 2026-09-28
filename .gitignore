@@ -29,7 +29,11 @@ out/
 pgdata/
 redisdata/
 *.db
+*.db-wal
+*.db-shm
 *.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
 backend/.local_jwt_secret
 backend/.local_set_password.txt
 

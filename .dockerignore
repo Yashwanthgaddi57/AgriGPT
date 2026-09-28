@@ -3,8 +3,10 @@ frontend
 backend/.venv
 backend/.pytest_cache
 backend/__pycache__
-backend/agrisphere_local.db
-backend/agrisphere_local.db-journal
+backend/agrigpt_local.db
+backend/agrigpt_local.db-journal
+backend/agrigpt_local.db-wal
+backend/agrigpt_local.db-shm
 backend/.local_jwt_secret
 backend/.local_set_password.txt
 backend/*.log

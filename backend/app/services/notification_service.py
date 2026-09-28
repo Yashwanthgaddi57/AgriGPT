@@ -55,10 +55,12 @@ class NotificationService:
         if not user:
             return
         payload = {
-            "from": "AgriSphere AI <alerts@agrisphere.ai>",
+            # Display name is the product brand; the address must stay on the
+            # domain verified with Resend, so only the label changed.
+            "from": "AgriGPT AI <alerts@agrigpt.app>",
             "to": [user.email],
             "subject": title,
-            "html": f"<h2>{title}</h2><p>{body}</p><p>— AgriSphere AI</p>",
+            "html": f"<h2>{title}</h2><p>{body}</p><p>— AgriGPT AI</p>",
         }
         headers = {"Authorization": f"Bearer {settings.RESEND_API_KEY}"}
         try:

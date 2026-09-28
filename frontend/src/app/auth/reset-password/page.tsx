@@ -101,7 +101,7 @@ export default function ResetPasswordPage() {
 
       setDone(true);
       // Clear any stale app token cache; user signs in fresh.
-      localStorage.removeItem("agrisphere-auth");
+      localStorage.removeItem("agrigpt-auth");
       setTimeout(() => router.push("/auth/login"), 2500);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update the password.");

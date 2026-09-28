@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str = "your-service-role-key"
     SUPABASE_ANON_KEY: str = "your-anon-key"
     SUPABASE_JWT_SECRET: str = "your-supabase-jwt-secret"
-    SUPABASE_DB_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/agrisphere"
+    SUPABASE_DB_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/agrigpt"
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

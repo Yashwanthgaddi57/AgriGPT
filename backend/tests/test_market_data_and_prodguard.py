@@ -268,7 +268,7 @@ def test_prod_guard_blocks_placeholder_supabase():
 
 
 def test_prod_guard_blocks_sqlite():
-    s = _prod_settings(SUPABASE_DB_URL="sqlite:///./agrisphere_local.db")
+    s = _prod_settings(SUPABASE_DB_URL="sqlite:///./agrigpt_local.db")
     with pytest.raises(RuntimeError, match="SQLite"):
         s.assert_production_ready()
 

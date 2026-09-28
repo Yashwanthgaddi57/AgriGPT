@@ -1,4 +1,4 @@
-"""Initial AgriSphere schema
+"""Initial AgriGPT schema
 
 Revision ID: 0001
 Revises:

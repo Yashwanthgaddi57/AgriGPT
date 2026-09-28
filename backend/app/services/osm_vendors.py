@@ -31,7 +31,7 @@ OVERPASS_URLS = [
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 ]
-_UA = {"User-Agent": "AgriSphereAI/1.0 (support@agrisphere.ai)"}
+_UA = {"User-Agent": "AgriGPT/1.0 (support@agrigpt.app)"}
 
 # Tier 1: unambiguous agri shop tags
 _AGRI_SHOP_RE = "^(agriculture|agrarian|seeds|farm|agricultural_machinery|fertilizer)$"

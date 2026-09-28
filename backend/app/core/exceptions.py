@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 logger = logging.getLogger("app.errors")
 
 
-class AgriSphereError(Exception):
+class AgriGPTError(Exception):
     """Base app exception."""
 
     status_code = 500
@@ -19,39 +19,39 @@ class AgriSphereError(Exception):
         super().__init__(self.detail)
 
 
-class NotFoundError(AgriSphereError):
+class NotFoundError(AgriGPTError):
     status_code = 404
     detail = "Resource not found"
 
 
-class ValidationError(AgriSphereError):
+class ValidationError(AgriGPTError):
     status_code = 422
     detail = "Validation error"
 
 
-class AIError(AgriSphereError):
+class AIError(AgriGPTError):
     status_code = 502
     detail = "AI service unavailable"
 
 
-class AuthError(AgriSphereError):
+class AuthError(AgriGPTError):
     status_code = 401
     detail = "Unauthorized"
 
 
-class ConflictError(AgriSphereError):
+class ConflictError(AgriGPTError):
     """HTTP 409 — resource already exists (e.g. duplicate email on register)."""
 
     status_code = 409
     detail = "Conflict"
 
 
-class ExternalServiceError(AgriSphereError):
+class ExternalServiceError(AgriGPTError):
     status_code = 502
     detail = "External service error"
 
 
-async def agrisphere_error_handler(request: Request, exc: AgriSphereError) -> JSONResponse:
+async def agrigpt_error_handler(request: Request, exc: AgriGPTError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -83,5 +83,5 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
 
 
 def register_exception_handlers(app) -> None:
-    app.add_exception_handler(AgriSphereError, agrisphere_error_handler)
+    app.add_exception_handler(AgriGPTError, agrigpt_error_handler)
     app.add_exception_handler(Exception, unhandled_error_handler)

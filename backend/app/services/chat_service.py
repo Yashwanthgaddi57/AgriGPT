@@ -263,6 +263,8 @@ class ChatService:
             for m in self.get_messages(str(user.id), str(session.id))[:-1][-12:]
         ]
         context = build_farmer_context(user, self.db)
+        # Commit the turn now — see _prepare_turn_with_lang for why.
+        self.db.commit()
         return session, history, context
 
     def _prepare_turn_with_lang(
@@ -289,6 +291,13 @@ class ChatService:
             for m in self.get_messages(str(user.id), str(session.id))[:-1][-12:]
         ]
         context = build_farmer_context(user, self.db, language_hint=language)
+        # Commit the turn before the caller streams the answer: that stream can
+        # hold this session open for many seconds (LLM latency), and an
+        # uncommitted write blocks every other writer for the whole window.
+        # Committing also makes the session id durable *before* it is sent to
+        # the client, so a follow-up message can never reference a session that
+        # was rolled back.
+        self.db.commit()
         return session, user_msg, history, context
 
     def _persist_assistant(
@@ -357,6 +366,8 @@ class ChatService:
             meta = {"intent": result.get("intent"), "entities": result.get("entities")}
 
         assistant_msg = self._persist_assistant(session, response_text, agent_used)
+        # Release the writer before returning — see stream_message for why.
+        self.db.commit()
         return session, user_msg, assistant_msg, meta
 
     async def stream_message(
@@ -443,6 +454,12 @@ class ChatService:
 
         response_text = sanitize_chat_output(response_text) or response_text
         assistant_msg = self._persist_assistant(session, response_text, agent_used)
+        # Commit here instead of trusting the request dependency to do it after
+        # the response: this generator drives a StreamingResponse, and a write
+        # transaction still open once it returns pins SQLite's single writer
+        # lock for the life of the process — after which every other write
+        # (including new chat sessions) fails with "database is locked".
+        self.db.commit()
         yield {
             "type": "done",
             "session_id": str(session.id),

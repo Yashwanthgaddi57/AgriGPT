@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           /* fall through to localStorage path */
         }
       }
-      const raw = localStorage.getItem("agrisphere-auth");
+      const raw = localStorage.getItem("agrigpt-auth");
       if (raw) {
         await fetchProfile();
       }
@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (supabase) {
       const { data: sub } = supabase.auth.onAuthStateChange((event) => {
         if (event === "SIGNED_OUT") {
-          localStorage.removeItem("agrisphere-auth");
+          localStorage.removeItem("agrigpt-auth");
           setUser(null);
         }
       });
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await api.post("/auth/login", { email, password });
         localStorage.setItem(
-          "agrisphere-auth",
+          "agrigpt-auth",
           JSON.stringify({
             access_token: res.data.access_token,
             refresh_token: res.data.refresh_token,
@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Local mode returns tokens immediately -> signed in on the spot.
       if (res.data?.access_token) {
         localStorage.setItem(
-          "agrisphere-auth",
+          "agrigpt-auth",
           JSON.stringify({
             access_token: res.data.access_token,
             refresh_token: res.data.refresh_token,
@@ -179,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = React.useCallback(async () => {
     const supabase = getSupabase();
     if (supabase) await supabase.auth.signOut().catch(() => undefined);
-    localStorage.removeItem("agrisphere-auth");
+    localStorage.removeItem("agrigpt-auth");
     setUser(null);
     router.push("/");
   }, [router]);

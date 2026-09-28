@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Bot, Mic, MicOff, Send, Trash2, User, Volume2, VolumeX } from "lucide-react";
+import { Bot, Mic, MicOff, Send, Trash2, User, Volume2, VolumeX, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import {
   sendMessageStream,
 } from "@/hooks/use-api";
 import { trackEvent, EVENTS } from "@/lib/events";
+import { apiErrorMessage } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import type { ChatMessage } from "@/types";
 import { cn, formatDate } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
@@ -70,6 +73,8 @@ const SPEECH_LOCALES: Record<string, string> = {
 };
 
 export default function CopilotPage() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { data: sessions } = useChatSessions();
   const [sessionId, setSessionId] = React.useState<string | null>(null);
   const { data: messages } = useChatMessages(sessionId);
@@ -92,6 +97,7 @@ export default function CopilotPage() {
   const [streamText, setStreamText] = React.useState("");
   const [streamAgent, setStreamAgent] = React.useState<string | null>(null);
   const [isStreaming, setIsStreaming] = React.useState(false);
+  const [sendError, setSendError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -155,9 +161,11 @@ export default function CopilotPage() {
     setStreamText("");
     setStreamAgent(null);
     setIsStreaming(true);
+    setSendError(null);
 
     let liveSessionId = sessionId;
     let finalText = "";
+    let streamFailure: string | null = null;
     try {
       await sendMessageStream(
         { content, session_id: sessionId, language: lang },
@@ -170,15 +178,29 @@ export default function CopilotPage() {
           } else if (e.type === "delta" && e.text) {
             finalText += e.text;
             setStreamText((prev) => prev + e.text);
+          } else if (e.type === "error") {
+            // The service degrades to an SSE error event rather than throwing.
+            streamFailure = e.message || "The copilot hit an error. Please try again.";
           } else if (e.type === "done") {
             if (!liveSessionId && e.session_id) setSessionId(e.session_id);
           }
         }
       );
+      if (streamFailure) throw new Error(streamFailure);
       speak(finalText);
-    } catch {
-      /* stream + fallback both failed; keep UI consistent */
+    } catch (e) {
+      // Never fail silently: a swallowed error (e.g. the 429 daily-quota
+      // response) makes the copilot look broken with zero feedback.
+      const message = apiErrorMessage(e);
+      setSendError(message);
+      toast({ title: "Copilot couldn't answer", description: message, variant: "destructive" });
     } finally {
+      // The answer lives only in `streamText` until the server's message list
+      // contains it. Refetch before clearing, or the reply vanishes the moment
+      // the stream ends.
+      if (liveSessionId) {
+        await queryClient.invalidateQueries({ queryKey: ["chat"] });
+      }
       setPending([]);
       setStreamText("");
       setStreamAgent(null);
@@ -186,7 +208,13 @@ export default function CopilotPage() {
     }
   };
 
-  const all: ChatMessage[] = [...(messages ?? []), ...pending];
+  const serverMessages = messages ?? [];
+  // Hide the optimistic bubble once the server returns that same message — the
+  // new session's first fetch otherwise renders the question twice.
+  const pendingToShow = pending.filter(
+    (p) => !serverMessages.some((m) => m.role === p.role && m.content === p.content)
+  );
+  const all: ChatMessage[] = [...serverMessages, ...pendingToShow];
   const showThinking = (send.isPending || isStreaming) && !streamText;
 
   return (
@@ -375,6 +403,19 @@ export default function CopilotPage() {
 
           {/* Input */}
           <div className="border-t p-3">
+            {sendError && (
+              <div className="mb-2 flex items-start justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <span>{sendError}</span>
+                <button
+                  type="button"
+                  onClick={() => setSendError(null)}
+                  aria-label="Dismiss error"
+                  className="shrink-0 opacity-70 transition-opacity hover:opacity-100"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             <form
               onSubmit={(e) => {
                 e.preventDefault();

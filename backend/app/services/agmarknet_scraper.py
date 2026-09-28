@@ -30,7 +30,7 @@ from app.core.cache import cache_get, cache_set
 logger = logging.getLogger("app.market.scraper")
 
 SEARCH_URL = "https://agmarknet.gov.in/SearchCmmMkt.aspx"
-_UA = {"User-Agent": "AgriSphereAI/1.0 (support@agrisphere.ai)"}
+_UA = {"User-Agent": "AgriGPT/1.0 (support@agrigpt.app)"}
 _TABLE_ID = "cphBody_GridPriceData"
 
 # Commodity names as Agmarknet spells them (dropdown values).

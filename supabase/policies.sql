@@ -1,5 +1,5 @@
 -- =====================================================================
--- AgriSphere AI — Row Level Security policies
+-- AgriGPT — Row Level Security policies
 -- Users can only ever touch their own rows through anon/authenticated
 -- keys. The backend uses the service-role key and bypasses RLS.
 -- =====================================================================

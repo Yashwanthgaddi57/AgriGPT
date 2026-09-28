@@ -291,7 +291,7 @@ def merge_node(state: AgentState) -> dict:
     combined = "\n\n---\n\n".join(f"[{name}]\n{text}" for name, text in outs.items())
     answer = claude.complete(
         system=(
-            "You are the AgriSphere Coordinator. Multiple specialist agents answered the farmer's "
+            "You are the AgriGPT Coordinator. Multiple specialist agents answered the farmer's "
             "question. Merge their outputs into ONE clear, well-structured answer in the farmer's "
             "language. Remove repetition, keep all concrete numbers and advice, use short sections "
             "with bold headers or bullets where helpful. Do not output JSON or code blocks. "
@@ -339,7 +339,7 @@ def build_graph():
     return g.compile()
 
 
-agrisphere_graph = build_graph()
+agrigpt_graph = build_graph()
 
 
 # ----------------------------------------------------------------------
@@ -468,7 +468,7 @@ async def run_chat_turn(
         "farmer_context": farmer_context,
         "specialist_outputs": {},
     }
-    final = await agrisphere_graph.ainvoke(initial, config=config)
+    final = await agrigpt_graph.ainvoke(initial, config=config)
     response = sanitize_chat_output(final.get("final_response", ""))
     return {
         "intent": final.get("intent", "general_advice"),

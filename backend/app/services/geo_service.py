@@ -17,7 +17,7 @@ logger = logging.getLogger("app.geo")
 OPEN_METEO_GEOCODE = "https://geocoding-api.open-meteo.com/v1/search"
 NOMINATIM_REVERSE = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_SEARCH = "https://nominatim.openstreetmap.org/search"
-_UA = {"User-Agent": "AgriSphereAI/1.0 (support@agrisphere.ai)"}
+_UA = {"User-Agent": "AgriGPT/1.0 (support@agrigpt.app)"}
 
 EARTH_RADIUS_KM = 6371.0088
 

@@ -4,13 +4,13 @@ import uuid as uuidlib
 from fastapi import APIRouter
 
 from app.core.deps import CurrentUser, DBSession, Pagination
-from app.core.exceptions import AgriSphereError
+from app.core.exceptions import AgriGPTError
 from app.models.agent_log import AgentLog
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-class Forbidden(AgriSphereError):
+class Forbidden(AgriGPTError):
     status_code = 403
     detail = "Admin access required"
 

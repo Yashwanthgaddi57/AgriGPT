@@ -214,7 +214,7 @@ async def forgot_password(payload: ForgotPasswordRequest):
     if local_auth_enabled():
         return {
             "message": "Local mode: password resets are managed by the administrator. "
-            "Delete backend/agrisphere_local.db and re-register to reset credentials."
+            "Delete backend/agrigpt_local.db and re-register to reset credentials."
         }
     redirect = f"{settings.FRONTEND_APP_URL.rstrip('/')}/auth/reset-password"
     try:

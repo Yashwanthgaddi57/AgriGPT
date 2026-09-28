@@ -1,7 +1,7 @@
 """SQLAlchemy engine and session management.
 
 Production targets Supabase Postgres. For local no-Docker runs it also
-supports SQLite (set SUPABASE_DB_URL=sqlite:///./agrisphere_local.db);
+supports SQLite (set SUPABASE_DB_URL=sqlite:///./agrigpt_local.db);
 tables are then auto-created on startup.
 """
 import logging
@@ -9,7 +9,7 @@ import uuid
 from collections.abc import Generator
 from typing import Any
 
-from sqlalchemy import CHAR, JSON, create_engine
+from sqlalchemy import CHAR, JSON, create_engine, event
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -72,13 +72,37 @@ _engine = None
 _SessionLocal: sessionmaker | None = None
 
 
+def _configure_sqlite(engine) -> None:
+    """Switch SQLite to WAL and give writers a generous busy timeout.
+
+    The default rollback journal blocks every other writer for as long as one
+    write transaction is open, and this app has two writers that overlap
+    constantly: live requests and the in-process alert scheduler. WAL keeps
+    reads working during a write, and busy_timeout makes a waiting writer
+    pause for the lock instead of failing the request outright.
+    synchronous=NORMAL is the usual WAL companion — still durable against a
+    process crash, only vulnerable to OS-level power loss.
+    """
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, _connection_record):  # pragma: no cover
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
+
+
 def get_engine():
     global _engine, _SessionLocal
     if _engine is None:
         url = settings.SUPABASE_DB_URL
         kwargs: dict[str, Any] = {"pool_pre_ping": True, "echo": False}
         if _is_sqlite(url):
-            kwargs["connect_args"] = {"check_same_thread": False}
+            # SQLite permits a single writer and its defaults fail fast: if a
+            # write transaction is open, the next writer raises "database is
+            # locked" immediately. A busy timeout makes it wait instead.
+            kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
         else:
             kwargs.update(pool_size=5, max_overflow=10, pool_recycle=1800)
             # Supabase's transaction pooler (pgbouncer, port 6543) does not support
@@ -88,6 +112,8 @@ def get_engine():
             # auto-prepare is required for every Supabase pooler connection.
             kwargs["connect_args"] = {"prepare_threshold": None}
         _engine = create_engine(url, **kwargs)
+        if _is_sqlite(url):
+            _configure_sqlite(_engine)
         _SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
     return _engine
 

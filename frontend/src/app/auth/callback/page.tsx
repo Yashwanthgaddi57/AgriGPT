@@ -60,7 +60,7 @@ export default function AuthCallbackPage() {
 
         // Persist tokens for the api client (same shape as password login).
         localStorage.setItem(
-          "agrisphere-auth",
+          "agrigpt-auth",
           JSON.stringify({
             access_token: session.access_token,
             refresh_token: session.refresh_token,

@@ -25,7 +25,7 @@ logger = logging.getLogger("app.weather.openweather")
 
 FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
 GEOCODE_URL = "https://api.openweathermap.org/geo/1.0/direct"
-_UA = {"User-Agent": "AgriSphereAI/1.0 (support@agrisphere.ai)"}
+_UA = {"User-Agent": "AgriGPT/1.0 (support@agrigpt.app)"}
 
 # OWM condition-id ranges -> human labels (aligned with the WMO vocabulary
 # used by the Open-Meteo parser so downstream text stays consistent).

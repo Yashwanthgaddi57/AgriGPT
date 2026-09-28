@@ -508,15 +508,37 @@ export function useDeleteChatSession() {
 }
 
 /**
+ * Pull a human-readable message out of an axios-style error body.
+ * The backend wraps errors as {"error": {"code", "detail", "path"}}.
+ */
+async function responseErrorMessage(res: Response): Promise<string> {
+  let detail = "";
+  try {
+    const body = await res.json();
+    detail = body?.error?.detail || body?.detail || body?.error?.message || body?.message || "";
+  } catch {
+    /* non-JSON body */
+  }
+  if (detail) return String(detail);
+  if (res.status === 429) {
+    return "You've reached your plan's daily copilot limit. Try again tomorrow or upgrade for unlimited chats.";
+  }
+  if (res.status === 401 || res.status === 403) {
+    return "Your session expired. Please sign in again.";
+  }
+  return `The copilot request failed (${res.status}). Please try again.`;
+}
+
+/**
  * Streaming chat: POSTs to the SSE endpoint with fetch (axios can't stream),
  * parses `data: {...}` events, and invokes onEvent for each. Falls back to
- * the non-streaming endpoint automatically if the stream fails.
+ * the non-streaming endpoint automatically only if the stream is unreachable.
  */
 export async function sendMessageStream(
   payload: { content: string; agent?: string; session_id?: string | null; language?: string | null },
   onEvent: (e: { type: string; text?: string; agent?: string; session_id?: string; message_id?: string; message?: string }) => void
 ): Promise<void> {
-  const raw = localStorage.getItem("agrisphere-auth");
+  const raw = localStorage.getItem("agrigpt-auth");
   let token = "";
   if (raw) {
     try {
@@ -528,16 +550,26 @@ export async function sendMessageStream(
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  let res: Response;
+  let res: Response | null = null;
   try {
     res = await fetch(`${API_URL}/api/v1/chat/messages/stream`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
     });
-    if (!res.ok || !res.body) throw new Error(`stream unavailable (${res.status})`);
   } catch {
-    // Network/endpoint failure -> classic request-response fallback
+    res = null; // network failure -> try the classic endpoint below
+  }
+
+  // The server answered with a real HTTP error (401/403/429/5xx). Surface its
+  // own message instead of retrying the non-streaming endpoint, which would
+  // fail identically and hide the reason (e.g. the daily-quota 429).
+  if (res && !res.ok) {
+    throw new Error(await responseErrorMessage(res));
+  }
+
+  if (!res || !res.body) {
+    // Endpoint unreachable / no stream support -> classic request-response fallback
     const data = (await api.post("/chat/messages", payload)).data as {
       session_id: string;
       message: ChatMessage;

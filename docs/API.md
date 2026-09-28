@@ -1,4 +1,4 @@
-# AgriSphere AI — API Documentation
+# AgriGPT — API Documentation
 
 Base URL: `{API_URL}/api/v1` · Interactive docs: `{API_URL}/docs` (Swagger UI)
 

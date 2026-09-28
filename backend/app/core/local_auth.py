@@ -67,7 +67,7 @@ def _jwt_secret() -> str:
 
 
 def _ephemeral_secret() -> str:
-    return settings.SUPABASE_JWT_SECRET or "agrisphere-local-dev-secret"
+    return settings.SUPABASE_JWT_SECRET or "agrigpt-local-dev-secret"
 
 
 def issue_local_tokens(user: User) -> dict[str, Any]:

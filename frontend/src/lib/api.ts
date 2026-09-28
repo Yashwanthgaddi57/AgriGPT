@@ -15,7 +15,7 @@ export const api = axios.create({
 //    session instead, and stash it so the refresh path can work with it.
 api.interceptors.request.use(async (config) => {
   if (typeof window !== "undefined") {
-    let raw = localStorage.getItem("agrisphere-auth");
+    let raw = localStorage.getItem("agrigpt-auth");
     if (!raw) {
       try {
         const { getSupabase } = await import("@/lib/supabase");
@@ -30,7 +30,7 @@ api.interceptors.request.use(async (config) => {
                 ? data.session.expires_at * 1000
                 : Date.now() + 3600_000,
             };
-            localStorage.setItem("agrisphere-auth", JSON.stringify(session));
+            localStorage.setItem("agrigpt-auth", JSON.stringify(session));
             raw = JSON.stringify(session);
           }
         }
@@ -58,7 +58,7 @@ async function tryRefresh(): Promise<string | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const raw = localStorage.getItem("agrisphere-auth");
+        const raw = localStorage.getItem("agrigpt-auth");
         if (!raw) return null;
         const session = JSON.parse(raw);
         if (!session?.refresh_token) return null;
@@ -73,10 +73,10 @@ async function tryRefresh(): Promise<string | null> {
           refresh_token: res.data.refresh_token,
           expires_at: Date.now() + (res.data.expires_in || 3600) * 1000,
         };
-        localStorage.setItem("agrisphere-auth", JSON.stringify(next));
+        localStorage.setItem("agrigpt-auth", JSON.stringify(next));
         return next.access_token;
       } catch {
-        localStorage.removeItem("agrisphere-auth");
+        localStorage.removeItem("agrigpt-auth");
         return null;
       } finally {
         refreshPromise = null;

@@ -27,7 +27,7 @@ from app.core.cache import cache_get, cache_set
 logger = logging.getLogger("app.market.agmarknet")
 
 RESOURCE_URL = "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070"
-_UA = {"User-Agent": "AgriSphereAI/1.0 (support@agrisphere.ai)"}
+_UA = {"User-Agent": "AgriGPT/1.0 (support@agrigpt.app)"}
 
 # Circuit breaker: data.gov.in throttles/outages for stretches at a time. After
 # repeated failures, stop calling it for a while so interactive endpoints

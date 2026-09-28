@@ -140,7 +140,7 @@ async def main() -> None:
         print("== Step 2: save Guntur location ==")
         await eval_js(f"""
           (async () => {{
-            const raw = localStorage.getItem('agrisphere-auth');
+            const raw = localStorage.getItem('agrigpt-auth');
             const token = JSON.parse(raw).access_token;
             const res = await fetch('{API}/geo/location', {{
               method: 'POST',
@@ -264,7 +264,7 @@ async def main() -> None:
         # Ground truth straight from the API
         api_state = await eval_js(f"""
           (async () => {{
-            const raw = localStorage.getItem('agrisphere-auth');
+            const raw = localStorage.getItem('agrigpt-auth');
             const token = JSON.parse(raw).access_token;
             const res = await fetch('{API}/geo/vendors?radius_km=10');
             const data = await res.json();

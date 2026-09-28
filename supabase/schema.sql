@@ -1,5 +1,5 @@
 -- =====================================================================
--- AgriSphere AI — Supabase PostgreSQL schema (baseline)
+-- AgriGPT — Supabase PostgreSQL schema (baseline)
 -- Run in Supabase SQL Editor (or psql) before first backend start.
 -- Alembic manages migrations going forward.
 -- =====================================================================

@@ -129,6 +129,12 @@ async def generate_alerts() -> None:
             except Exception as e:
                 logger.warning("Alert generation failed for user %s: %s", user.id, e)
 
+            # Commit per user. Each notification insert takes a write lock and
+            # the rest of the pass makes slow network calls (weather, mandi
+            # prices), so a single transaction spanning every user held the
+            # lock for the whole pass and locked live requests out of SQLite.
+            db.commit()
+
         db.commit()
         logger.info(
             "Alert generation pass complete: %d users, %d notifications", len(users), sent_count

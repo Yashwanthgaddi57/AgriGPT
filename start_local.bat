@@ -11,11 +11,11 @@ if not exist ".next\BUILD_ID" (
 
 rem ---- Start servers ----
 cd /d "%~dp0backend"
-start "agrisphere-backend" /min .venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+start "agrigpt-backend" /min .venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 cd /d "%~dp0frontend"
-start "agrisphere-frontend" /min cmd /c "npx next start"
+start "agrigpt-frontend" /min cmd /c "npx next start"
 
-echo AgriSphere AI running (frontend in PRODUCTION mode):
+echo AgriGPT running (frontend in PRODUCTION mode):
 echo   Frontend  http://localhost:3000
 echo   Backend   http://localhost:8000/docs
 echo.
