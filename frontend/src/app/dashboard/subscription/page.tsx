@@ -3,6 +3,9 @@
 import * as React from "react";
 import { Check, Crown, Info, Loader2 } from "lucide-react";
 
+import { useQueryClient } from "@tanstack/react-query";
+
+import { useAuth } from "@/contexts/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,26 +23,106 @@ export default function SubscriptionPage() {
   const { data: plans } = useSubscriptionPlans();
   const { data: sub } = useMySubscription();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const qc = useQueryClient();
   const [upgrading, setUpgrading] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     trackEvent(EVENTS.subscriptionPageViewed);
   }, []);
 
+  // One checkout flow, two outcomes:
+  //  - 501 from the backend  -> payments not configured yet, show the old copy.
+  //  - order payload          -> open Razorpay Checkout, then /verify on success.
+  // Plan activation is server-side only (signature + capture check), so this
+  // callback can never grant Pro by itself — it just forwards what Razorpay
+  // returned to the backend for verification.
   const upgrade = async (planId: string) => {
     setUpgrading(planId);
     trackEvent(EVENTS.subscriptionStarted, { plan: planId });
     try {
-      await api.post("/subscription/checkout", { plan: planId });
+      const { data: order } = await api.post("/subscription/checkout", { plan: planId });
+      await openRazorpayCheckout(order);
     } catch (e: unknown) {
+      const status = (e as { response?: { status?: number } })?.response?.status;
       const detail =
         (e as { response?: { data?: { error?: { detail?: string } } } })?.response?.data?.error
-          ?.detail ?? "Payments are coming soon.";
-      toast({ title: "Payments coming soon", description: detail });
+          ?.detail ?? "Could not start the payment. Please try again.";
+      if (status === 501) {
+        toast({ title: "Payments coming soon", description: detail });
+      } else {
+        toast({ title: "Upgrade failed", description: detail, variant: "destructive" });
+      }
     } finally {
       setUpgrading(null);
     }
   };
+
+  const openRazorpayCheckout = (order: {
+    order_id: string;
+    amount_inr: number;
+    currency: string;
+    key_id: string;
+    plan: string;
+  }) =>
+    new Promise<void>((resolve, reject) => {
+      if (typeof window === "undefined") return reject(new Error("no window"));
+      const w = window as unknown as {
+        Razorpay?: new (options: Record<string, unknown>) => { open: () => void; on: (event: string, cb: (r: unknown) => void) => void };
+      };
+
+      const start = () => {
+        if (!w.Razorpay) return reject(new Error("Razorpay script did not load."));
+        const rzp = new w.Razorpay({
+          key: order.key_id,
+          amount: order.amount_inr,
+          currency: order.currency,
+          name: "AgriGPT",
+          description: `AgriGPT ${order.plan} plan`,
+          order_id: order.order_id,
+          prefill: sub ? { name: user?.name ?? "", email: user?.email ?? "" } : undefined,
+          theme: { color: "#15803d" },
+          handler: async (response: {
+            razorpay_order_id: string;
+            razorpay_payment_id: string;
+            razorpay_signature: string;
+          }) => {
+            try {
+              await api.post("/subscription/verify", response);
+              await qc.invalidateQueries({ queryKey: ["subscription"] });
+              toast({ title: "Pro activated!", description: "Unlimited access is now enabled on your account.", variant: "success" });
+              trackEvent(EVENTS.subscriptionCompleted, { plan: order.plan });
+              resolve();
+            } catch (e) {
+              const detail =
+                (e as { response?: { data?: { error?: { detail?: string } } } })?.response?.data?.error
+                  ?.detail ?? "Verification failed. If you were charged, contact support.";
+              toast({ title: "Verification failed", description: detail, variant: "destructive" });
+              reject(e);
+            }
+          },
+          modal: {
+            ondismiss: () => reject(new Error("Payment cancelled.")),
+          },
+        });
+        rzp.on("payment.failed", () =>
+          toast({ title: "Payment failed", description: "The bank declined the payment. No amount was deducted.", variant: "destructive" })
+        );
+        rzp.open();
+      };
+
+      // Load the Checkout script once; reuse it on subsequent upgrades.
+      const existing = document.querySelector<HTMLScriptElement>("script[src='https://checkout.razorpay.com/v1/checkout.js']");
+      if (existing) {
+        start();
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = start;
+      script.onerror = () => reject(new Error("Could not load Razorpay. Check your connection."));
+      document.body.appendChild(script);
+    });
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -138,8 +221,9 @@ export default function SubscriptionPage() {
 
       <p className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        Online payments are being integrated — upgrading is currently handled by
-        our team. Your data and usage are never affected while you decide.
+        Payments are processed securely by Razorpay (UPI, cards, netbanking).
+        Plan activation is verified server-side — your data and usage are
+        never affected while you decide.
       </p>
     </div>
   );

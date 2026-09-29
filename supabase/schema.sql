@@ -363,3 +363,24 @@ create table password_reset_tokens (
   consumed_at timestamptz
 );
 create index idx_password_reset_tokens_email on password_reset_tokens(email);
+
+-- ---------------------------------------------------------------------
+-- payments (Razorpay checkout records; status paid only after server-side
+-- signature verification)
+-- ---------------------------------------------------------------------
+create table payments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  plan text not null,
+  amount_inr integer not null,
+  currency text not null default 'INR',
+  status text not null default 'created',
+  razorpay_order_id text not null unique,
+  razorpay_payment_id text unique,
+  razorpay_signature text,
+  created_at timestamptz not null default now(),
+  paid_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+create index idx_payments_user_id on payments(user_id);
+create index idx_payments_status on payments(status);

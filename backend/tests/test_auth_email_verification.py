@@ -388,7 +388,10 @@ def test_email_verification_required_flag(monkeypatch):
 
 
 def test_email_delivery_configured_flag(monkeypatch):
+    # Blank BOTH providers: the developer's .env may hold a real Brevo key,
+    # so only patching Resend would not make the flag False.
     monkeypatch.setattr(settings, "RESEND_API_KEY", "")
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "")
     assert settings.email_delivery_configured is False
     monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
     assert settings.email_delivery_configured is True

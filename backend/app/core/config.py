@@ -75,6 +75,15 @@ class Settings(BaseSettings):
     # empty; set a dedicated random value in production.
     RESET_TOKEN_SECRET: str = ""
 
+    # Payments (Razorpay) — test-mode keys work with no KYC; live keys only
+    # after Razorpay activation. When both are empty the checkout endpoint
+    # returns 501 and the UI shows "payments coming soon" as before.
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    # Webhook secret from the Razorpay dashboard (optional hardening layer;
+    # checkout verification itself is signature-based and always required).
+    RAZORPAY_WEBHOOK_SECRET: str = ""
+
     # Observability (Sentry, web push) — optional, off when empty
     SENTRY_DSN: str = ""
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1
@@ -111,6 +120,11 @@ class Settings(BaseSettings):
     def email_delivery_configured(self) -> bool:
         """True when any provider key is present, i.e. mail can actually be sent."""
         return bool(self.BREVO_API_KEY.strip() or self.RESEND_API_KEY.strip())
+
+    @property
+    def payments_enabled(self) -> bool:
+        """True when Razorpay keys are present, i.e. checkout can create orders."""
+        return bool(self.RAZORPAY_KEY_ID.strip() and self.RAZORPAY_KEY_SECRET.strip())
 
     def assert_production_ready(self) -> None:
         """Fail loudly on misconfigurations that are silent security/data risks.

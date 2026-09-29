@@ -10,6 +10,7 @@ from app.models.mandi import Mandi, Vendor
 from app.models.market_prediction import MarketPrediction
 from app.models.notifications import Notification
 from app.models.password_reset import PasswordResetToken
+from app.models.payment import Payment
 from app.models.profit_prediction import ProfitPrediction
 from app.models.push_subscription import PushSubscription
 from app.models.recommendation import Recommendation
@@ -31,6 +32,7 @@ __all__ = [
     "MarketPrediction",
     "Notification",
     "PasswordResetToken",
+    "Payment",
     "ProfitPrediction",
     "PushSubscription",
     "Recommendation",
