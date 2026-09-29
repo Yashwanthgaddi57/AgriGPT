@@ -332,3 +332,34 @@ create table vendors (
 );
 create index idx_vendors_category on vendors(category);
 create index idx_vendors_district on vendors(district);
+
+-- ---------------------------------------------------------------------
+-- email_verification_codes (app-issued 6-digit signup codes)
+-- Only the SHA-256 hash is stored, so a table read cannot confirm an account.
+-- No RLS policies: the backend accesses this with the service role only.
+-- ---------------------------------------------------------------------
+create table email_verification_codes (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  code_hash text not null,
+  attempts integer not null default 0,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  consumed_at timestamptz
+);
+create index idx_email_verification_codes_email on email_verification_codes(email);
+
+-- ---------------------------------------------------------------------
+-- password_reset_tokens (app-issued single-use reset links)
+-- Only keyed HMAC hashes are stored. Backend service-role access only;
+-- no RLS policies on purpose.
+-- ---------------------------------------------------------------------
+create table password_reset_tokens (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  token_hash text not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  consumed_at timestamptz
+);
+create index idx_password_reset_tokens_email on password_reset_tokens(email);

@@ -6,7 +6,7 @@
 
 Crop recommendations · Disease detection · Profit prediction · Live mandi prices · Weather advisories · Multi-agent AI copilot
 
-`Next.js 15` · `FastAPI` · `Claude Sonnet (Bedrock)` · `LangGraph` · `Supabase` · `PostgreSQL` · `Render`
+`Next.js 15` · `FastAPI` · `Claude Sonnet (Bedrock)` · `LangGraph` · `Supabase` · `PostgreSQL` · `Docker`
 
 </div>
 
@@ -38,8 +38,8 @@ Everything the AI produces is **persisted** (recommendations, reports, predictio
 
 ```
 ┌─────────────────┐      HTTPS/JWT      ┌──────────────────┐
-│  Next.js 15     │ ──────────────────► │  FastAPI (Render)│
-│  (Render web)   │                     │  ├─ Routers      │
+│  Next.js 15     │ ──────────────────► │  FastAPI         │
+│                 │                     │  ├─ Routers      │
 │  Tailwind/shadcn│                     │  ├─ Services     │
 │  TanStack Query │                     │  ├─ LangGraph ▸──┼──► Claude Sonnet (Bedrock)
 │  Recharts       │                     │  │   6 agents    │
@@ -60,7 +60,6 @@ Everything the AI produces is **persisted** (recommendations, reports, predictio
 
 ```
 agrigpt/
-├── render.yaml                 # Render Blueprint: agrigpt-api + agrigpt-web (one-click deploy)
 ├── backend/
 │   ├── app/
 │   │   ├── ai/                 # claude_client, prompts, weather_client, LangGraph agents
@@ -84,7 +83,7 @@ agrigpt/
 │   │   ├── hooks/              # use-api (TanStack Query for every endpoint), use-toast
 │   │   ├── lib/                # api (axios + refresh), supabase, utils
 │   │   └── types/              # shared TS types
-│   └── Dockerfile · vercel.json (optional — Render Blueprint is the default path)
+│   └── Dockerfile
 ├── supabase/
 │   ├── schema.sql              # full DDL: enums, 12 tables, indexes, triggers
 │   └── policies.sql            # RLS + storage bucket policies
@@ -156,51 +155,42 @@ See [.env.example](.env.example). Key values:
 | `NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` | frontend | browser auth |
 | `NEXT_PUBLIC_API_URL` | frontend | FastAPI base URL |
 
-## Deployment (all on Render)
+## Deployment
 
-The root [`render.yaml`](render.yaml) is a Render Blueprint defining both services. Everything deploys from this repo with one import.
+The repo ships container-ready Docker images for both halves (see `Dockerfile` and `backend/Dockerfile`), plus `docker-compose.yml` for a full local stack. Deploy the two services on any platform that runs containers (Fly.io, Railway, ECS, Cloud Run, a VPS, ...) and wire them together with environment variables — no platform-specific config files are committed.
 
 ### 1 · Create the database schema on Supabase (one time)
-1. Supabase → SQL Editor → run `supabase/schema.sql`, then `supabase/policies.sql`.
+1. Supabase → SQL Editor → run `supabase/schema.sql`, then `supabase/policies.sql` (or `alembic upgrade head`).
 2. Grab from **Settings → API**: project URL, anon key, service-role key, JWT secret.
 
-### 2 · Import the Blueprint
-1. [render.com](https://render.com) → sign in with GitHub.
-2. **New + → Blueprint** → pick this repo, branch `main`.
-3. Render creates both services:
-   - `agrigpt-api` — FastAPI (Singapore region, health check `/health`)
-   - `agrigpt-web` — Next.js 15
-4. Fill the `sync: false` secrets it prompts for (Supabase keys, `SUPABASE_DB_URL`, `BEDROCK_API_KEY`).
+### 2 · Provision the two services
+- **Backend** — build the repo root `Dockerfile`, expose `$PORT`, health check `/health`.
+- **Frontend** — build `frontend/Dockerfile`, expose port 3000.
+- Required backend env: `ENVIRONMENT=production`, Supabase keys, `SUPABASE_DB_URL`, AI keys, `BACKEND_CORS_ORIGINS`, `FRONTEND_APP_URL`, `RESEND_API_KEY`.
+- Required frontend env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`.
 
 ### 3 · The database URL (common gotcha)
-Use Supabase's **Transaction pooler** URI (port 6543) — the direct `db.<ref>.supabase.co` host is IPv6-only and unreachable from Render:
+If your host is IPv4-only, use Supabase's **Transaction pooler** URI (port 6543) — the direct `db.<ref>.supabase.co` host is IPv6-only:
 
 ```
 postgresql+psycopg://postgres.<PROJECT_REF>:PASSWORD@aws-0-<REGION>.pooler.supabase.com:6543/postgres
 ```
 
 ### 4 · URLs must match
-The Blueprint assumes the default service names (`agrigpt-api`, `agrigpt-web`). If Render appends suffixes, update these to the real URLs:
 - backend: `BACKEND_CORS_ORIGINS` (must include the frontend origin), `FRONTEND_APP_URL`
 - frontend: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`
 
 ### 5 · Post-deploy checklist
 - [ ] `https://<api-url>/health` returns 200
 - [ ] Supabase → Auth → **URL Configuration**: Site URL = frontend URL; add `/*/auth/callback` and `/*/auth/reset-password` redirects
-- [ ] Supabase → Auth → Providers → Email → **disable "Confirm email"** so signups work instantly
+- [ ] Supabase → Auth → Providers → Email → keep **"Confirm email"** enabled (the backend emails its own 6-digit code via Resend)
 - [ ] Google OAuth: add `https://<frontend-url>/auth/callback` to the Google Cloud redirect URIs
 - [ ] Sign up, log in, check the dashboard price ticker
 
-### Free tier notes
-- Services **spin down after ~15 min idle**; the first request wakes them (~50 s). Starter plans ($7/mo each) keep them always-on and the alert scheduler reliable.
-- Redis is optional: the cache and rate limiter fall back to in-process automatically. Add a Render/Upstash Redis later and set `REDIS_URL`.
+### Operations notes
+- Keep **one** uvicorn worker — APScheduler must run exactly once, or alerts duplicate.
+- Redis is optional: the cache and rate limiter fall back to in-process automatically. Add a managed Redis later and set `REDIS_URL`.
 - `DATA_GOV_API_KEY` ships with data.gov.in's public trial key for convenience — register your own free key for production rate limits.
-
-<details>
-<summary>Alternative: frontend on Vercel</summary>
-
-The repo still carries `frontend/vercel.json` (Mumbai region). Import the repo on Vercel with **Root Directory** `frontend`, set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, then point the backend's `BACKEND_CORS_ORIGINS` and `FRONTEND_APP_URL` at the Vercel domain. Delete the `agrigpt-web` service from the Blueprint if you go this way.
-</details>
 
 ## Testing
 
@@ -217,7 +207,7 @@ Backend tests run fully offline: SQLite in-memory DB, auth overridden, no Claude
 - **RLS**: every table locked to `auth.uid()` for anon/authenticated clients; the backend alone holds the service-role key.
 - **Storage**: `disease-images` bucket — public read, owner-scoped writes under `{user_id}/` prefix.
 - **Rate limiting**: Redis fixed-window per IP (120 req/min), fail-open (in-process fallback otherwise).
-- **Secrets**: environment-only; `.env*` git-ignored; Render prompts for secrets at deploy time (`sync: false`).
+- **Secrets**: environment-only; `.env*` git-ignored and never committed.
 
 ## Roadmap
 

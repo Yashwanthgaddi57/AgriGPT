@@ -74,19 +74,32 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: FormData) => {
     try {
-      const outcome = await registerUser(data);
-      if (outcome === "authenticated") {
+      const { status, verificationSent, devCode } = await registerUser(data);
+      if (status === "authenticated") {
         trackEvent(EVENTS.signupCompleted, { plan: planParam ?? "free" });
         toast({ title: "Welcome to AgriGPT!", variant: "success" });
         // Farm-first onboarding; ?plan=pro still lands on subscription after.
         router.push(planParam === "pro" ? "/dashboard/subscription" : "/dashboard/onboarding");
       } else {
-        toast({
-          title: "Registration successful",
-          description: "Check your email to confirm your account, then sign in.",
-          variant: "success",
-        });
-        router.push("/auth/login");
+        // Never promise an email that the provider refused to take.
+        toast(
+          verificationSent
+            ? {
+                title: "Registration successful",
+                description: "We emailed you a 6-digit code — enter it to activate your account.",
+                variant: "success",
+              }
+            : {
+                title: "Account created",
+                description: "We couldn't send the verification email. Tap “Resend code” on the next screen.",
+                variant: "destructive",
+              }
+        );
+        // Dev-only: when no mail provider is configured the backend returns
+        // the code so the flow is fully testable before Brevo is wired up.
+        const devSuffix = devCode ? `&devcode=${devCode}` : "";
+        // Carry the email through so they only type the code, not both fields.
+        router.push(`/auth/verify?email=${encodeURIComponent(data.email)}${devSuffix}`);
       }
     } catch (e: any) {
       const status = e?.response?.status;

@@ -81,12 +81,13 @@ async def _admin_signup_and_signin(
     anon_headers: dict,
     user_data: dict,
 ) -> dict:
-    """Create an UNCONFIRMED user via the admin API, then send a verification email.
+    """Create an UNCONFIRMED user via the admin API, then sign in if allowed.
 
-    The user is created with email_confirm=False so Supabase's free-tier
-    email rate limit is not hit on signup (the admin API does not send one).
-    The verification link is then sent explicitly via the admin generate_link
-    endpoint, which is a single targeted email — well within the rate limit.
+    The user is created with email_confirm=False, so no Supabase mail is sent
+    on signup. When verification is required the caller emails its own 6-digit
+    code (see app/core/email_verification.py) and the account stays unable to
+    sign in until admin_confirm_email succeeds. Otherwise the account is
+    confirmed immediately and this returns a session.
     """
     create = await client.post(
         "/auth/v1/admin/users",
@@ -207,19 +208,19 @@ async def _admin_create_user(
 ) -> dict:
     """Create a user via the admin API.
 
-    In development (ENVIRONMENT=development) the user is created already
-    confirmed so local signups work without an SMTP server. In production
-    the user is created unconfirmed and a verification email is sent
-    separately via supabase_send_verification().
+    When email verification is not required the user is created already
+    confirmed so local signups work without an SMTP server. When it is
+    required the user is left unconfirmed and the caller emails its own
+    6-digit code (see app/core/email_verification.py); the account only
+    becomes signable once admin_confirm_email() succeeds.
     """
     from app.core.config import settings
     from app.core.exceptions import ConflictError
 
-    # Development: auto-confirm so local logins work without SMTP.
-    # Production: leave unconfirmed; the verification email is sent
-    # separately via supabase_send_verification() and login is blocked
-    # until the user clicks the link.
-    auto_confirm = settings.ENVIRONMENT != "production"
+    # Verification off -> auto-confirm, so signup can't be blocked by an
+    # unconfigured SMTP server. Verification on -> leave unconfirmed; login
+    # stays blocked until the emailed code is entered.
+    auto_confirm = not settings.email_verification_required
     create = await client.post(
         "/auth/v1/admin/users",
         headers=admin_headers,
@@ -297,31 +298,52 @@ async def supabase_sign_in(email: str, password: str) -> dict:
         return resp.json()
 
 
-async def supabase_send_verification(email: str, redirect_to: str) -> bool:
-    """Trigger Supabase's email-verification link for a user.
+async def admin_confirm_email(email: str) -> bool:
+    """Mark an account's email as confirmed via the service-role admin API.
 
-    Uses the admin API (service role) so it works even when signup was
-    performed server-side. Returns True on success, False on failure.
+    Called once the app-owned 6-digit code has been checked. Supabase remains
+    the source of truth for who may sign in, so a valid code only counts if
+    this succeeds. Returns False on any failure — the caller must not treat a
+    failed confirmation as a verified account.
     """
+    user = await admin_get_user_by_email(email)
+    if not user or not user.get("id"):
+        return False
+
+    key = (settings.SUPABASE_SERVICE_KEY or "").strip()
+    legacy = key.startswith("sb_secret_")
     try:
         async with httpx.AsyncClient(base_url=settings.SUPABASE_URL, timeout=15) as client:
-            resp = await client.post(
-                "/auth/v1/admin/generate_link",
+            resp = await client.put(
+                f"/auth/v1/admin/users/{user['id']}",
                 headers={
-                    "apikey": settings.SUPABASE_ANON_KEY,
-                    "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
+                    "apikey": key if legacy else settings.SUPABASE_ANON_KEY,
+                    "Authorization": f"Bearer {key}",
                 },
-                json={
-                    "email": email,
-                    "type": "signup",
-                    "redirect_to": redirect_to,
-                },
+                json={"email_confirm": True},
             )
-            if resp.status_code >= 400:
-                return False
-            return True
     except Exception:
         return False
+    return resp.status_code < 400
+
+
+async def admin_update_password(user_id: str, new_password: str) -> bool:
+    """Set a new password for an auth user via the service-role admin API."""
+    key = (settings.SUPABASE_SERVICE_KEY or "").strip()
+    legacy = key.startswith("sb_secret_")
+    try:
+        async with httpx.AsyncClient(base_url=settings.SUPABASE_URL, timeout=15) as client:
+            resp = await client.put(
+                f"/auth/v1/admin/users/{user_id}",
+                headers={
+                    "apikey": key if legacy else settings.SUPABASE_ANON_KEY,
+                    "Authorization": f"Bearer {key}",
+                },
+                json={"password": new_password},
+            )
+    except Exception:
+        return False
+    return resp.status_code < 400
 
 
 async def supabase_is_email_confirmed(email: str) -> bool | None:

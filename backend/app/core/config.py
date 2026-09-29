@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     # Base URL of the frontend, used for password-reset email redirects.
     FRONTEND_APP_URL: str = "http://localhost:3000"
+    # Require the 6-digit email code before an account can sign in. Defaults
+    # to on in production; set REQUIRE_EMAIL_VERIFICATION=true in development
+    # to exercise the real flow (needs Supabase SMTP configured).
+    REQUIRE_EMAIL_VERIFICATION: bool = False
 
     # Supabase
     SUPABASE_URL: str = "https://YOUR_PROJECT_REF.supabase.co"
@@ -49,6 +53,27 @@ class Settings(BaseSettings):
 
     # Email
     RESEND_API_KEY: str = ""
+    # Brevo is the preferred provider: 300 emails/day free forever, and one
+    # verified *sender email* is enough — no domain DNS required. Create the
+    # key at app.brevo.com → SMTP & API → API keys, verify the sender under
+    # Senders, then set BREVO_API_KEY + EMAIL_FROM.
+    BREVO_API_KEY: str = ""
+    # Sender for transactional mail. With Brevo this must be a sender verified
+    # in the Brevo dashboard; with Resend it must be a verified domain.
+    EMAIL_FROM: str = "AgriGPT AI <alerts@agrigpt.app>"
+    # App-issued signup codes (see app/core/email_verification.py). These are
+    # generated and emailed by this backend rather than by Supabase, so the
+    # project's Supabase mailer template and its 2-emails/hour cap are not
+    # involved at all.
+    EMAIL_VERIFICATION_TTL_MINUTES: int = 10
+    EMAIL_VERIFICATION_MAX_ATTEMPTS: int = 5
+    EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
+    # App-issued password reset (same design as signup codes: single-use,
+    # expiring, stored hashed — delivered as a signed link).
+    PASSWORD_RESET_TTL_MINUTES: int = 30
+    # Pepper for hashing reset tokens. Falls back to SUPABASE_JWT_SECRET when
+    # empty; set a dedicated random value in production.
+    RESET_TOKEN_SECRET: str = ""
 
     # Observability (Sentry, web push) — optional, off when empty
     SENTRY_DSN: str = ""
@@ -76,6 +101,16 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
+
+    @property
+    def email_verification_required(self) -> bool:
+        """True when a signup must be confirmed with an emailed code first."""
+        return self.REQUIRE_EMAIL_VERIFICATION or self.is_production
+
+    @property
+    def email_delivery_configured(self) -> bool:
+        """True when any provider key is present, i.e. mail can actually be sent."""
+        return bool(self.BREVO_API_KEY.strip() or self.RESEND_API_KEY.strip())
 
     def assert_production_ready(self) -> None:
         """Fail loudly on misconfigurations that are silent security/data risks.

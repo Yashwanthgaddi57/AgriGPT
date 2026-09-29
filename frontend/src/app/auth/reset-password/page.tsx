@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { api, apiErrorMessage } from "@/lib/api";
 import { getSupabase } from "@/lib/supabase";
 
 const schema = z
@@ -28,14 +29,16 @@ type FormData = z.infer<typeof schema>;
 /**
  * Password reset landing — target of the "Forgot password" email link.
  *
- * Supabase delivers the recovery link as either
- *   - an implicit-flow URL fragment  (#access_token=...&type=recovery) or
- *   - a one-time code query param    (?code=...)
- * detectSessionInUrl + the exchange below cover both shapes.
+ * Two link shapes are supported:
+ *   - ?token=...   — our own single-use reset token (current flow)
+ *   - legacy Supabase recovery links: an implicit-flow URL fragment
+ *     (#access_token=...&type=recovery) or a one-time code (?code=...)
  */
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const [ready, setReady] = React.useState(false); // recovery session established
+  const [mode, setMode] = React.useState<"checking" | "app" | "supabase">("checking");
+  const [appToken, setAppToken] = React.useState("");
+  const [ready, setReady] = React.useState(false); // Supabase recovery session established
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState(false);
   const {
@@ -48,8 +51,20 @@ export default function ResetPasswordPage() {
     let cancelled = false;
     (async () => {
       try {
+        // Our own flow: the emailed link carries the token in the query string.
+        const query = new URLSearchParams(window.location.search);
+        const token = query.get("token");
+        if (token) {
+          if (!cancelled) {
+            setAppToken(token);
+            setMode("app");
+          }
+          return;
+        }
+
         const supabase = getSupabase();
         if (!supabase) throw new Error("Supabase is not configured.");
+        if (!cancelled) setMode("supabase");
 
         const hash = window.location.hash.startsWith("#")
           ? window.location.hash.slice(1)
@@ -94,17 +109,22 @@ export default function ResetPasswordPage() {
   const onSubmit = async (data: FormData) => {
     setError(null);
     try {
-      const supabase = getSupabase();
-      if (!supabase) throw new Error("Supabase is not configured.");
-      const { error: upErr } = await supabase.auth.updateUser({ password: data.password });
-      if (upErr) throw upErr;
+      if (mode === "app") {
+        // App-issued token: the backend consumes it and updates the password.
+        await api.post("/auth/reset-password", { token: appToken, password: data.password });
+      } else {
+        const supabase = getSupabase();
+        if (!supabase) throw new Error("Supabase is not configured.");
+        const { error: upErr } = await supabase.auth.updateUser({ password: data.password });
+        if (upErr) throw upErr;
+      }
 
       setDone(true);
       // Clear any stale app token cache; user signs in fresh.
       localStorage.removeItem("agrigpt-auth");
       setTimeout(() => router.push("/auth/login"), 2500);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not update the password.");
+    } catch (e: any) {
+      setError(apiErrorMessage(e));
     }
   };
 
@@ -117,9 +137,9 @@ export default function ResetPasswordPage() {
         <CardDescription>
           {done
             ? "You can now sign in with your new password."
-            : ready
-              ? "Pick something strong — at least 8 characters."
-              : "Validating your reset link…"}
+            : mode === "checking"
+              ? "Validating your reset link…"
+              : "Pick something strong — at least 8 characters."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -140,7 +160,11 @@ export default function ResetPasswordPage() {
               <Link href="/auth/forgot-password">Request a new reset link</Link>
             </Button>
           </>
-        ) : ready ? (
+        ) : mode === "checking" ? (
+          <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Checking link…
+          </div>
+        ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="password">New password</Label>
@@ -161,10 +185,6 @@ export default function ResetPasswordPage() {
               Update password
             </Button>
           </form>
-        ) : (
-          <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Checking link…
-          </div>
         )}
       </CardContent>
     </Card>

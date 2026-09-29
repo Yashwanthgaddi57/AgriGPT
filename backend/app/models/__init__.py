@@ -2,12 +2,14 @@ from app.models.activity import Activity
 from app.models.agent_log import AgentLog
 from app.models.chat import ChatMessage, ChatSession
 from app.models.disease_report import DiseaseReport
+from app.models.email_verification import EmailVerificationCode
 from app.models.expense import Expense
 from app.models.farm import Farm
 from app.models.harvest import Harvest
 from app.models.mandi import Mandi, Vendor
 from app.models.market_prediction import MarketPrediction
 from app.models.notifications import Notification
+from app.models.password_reset import PasswordResetToken
 from app.models.profit_prediction import ProfitPrediction
 from app.models.push_subscription import PushSubscription
 from app.models.recommendation import Recommendation
@@ -20,6 +22,7 @@ __all__ = [
     "ChatMessage",
     "ChatSession",
     "DiseaseReport",
+    "EmailVerificationCode",
     "Expense",
     "Farm",
     "Harvest",
@@ -27,6 +30,7 @@ __all__ = [
     "Vendor",
     "MarketPrediction",
     "Notification",
+    "PasswordResetToken",
     "ProfitPrediction",
     "PushSubscription",
     "Recommendation",

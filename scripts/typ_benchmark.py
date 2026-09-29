@@ -1,4 +1,4 @@
-"""Typography benchmark: AgriGPT vs apple.com, Stripe, Linear, Vercel, GitHub.
+"""Typography benchmark: AgriGPT vs apple.com, Stripe, Linear, GitHub.
 
 Measures computed font-size / weight / line-height / letter-spacing for
 generic elements (body, h1-h3, p, nav a, button) on each site so the app's
@@ -20,7 +20,6 @@ SITES = [
     ("apple.com/iphone", "https://www.apple.com/iphone/"),
     ("stripe.com", "https://stripe.com"),
     ("linear.app", "https://linear.app"),
-    ("vercel.com", "https://vercel.com"),
     ("github.com", "https://github.com"),
 ]
 

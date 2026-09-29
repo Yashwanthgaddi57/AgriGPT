@@ -38,9 +38,11 @@ const schema = z.object({
   district: z.string().optional(),
   village: z.string().optional(),
   farm_size_acres: z.coerce.number().min(0),
-  soil_type: z.string(),
-  water_availability: z.string(),
-  language: z.string(),
+  // Soil/water/language live in Select state (never registered with the form),
+  // so the schema must not require them — onSubmit overrides with the state.
+  soil_type: z.string().default("unknown"),
+  water_availability: z.string().default("rainfed"),
+  language: z.string().default("en"),
 });
 type FormData = z.infer<typeof schema>;
 

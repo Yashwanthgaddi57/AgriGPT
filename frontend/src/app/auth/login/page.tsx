@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, Mail } from "lucide-react";
+import { CheckCircle2, Loader2, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,11 +28,23 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [emailNotConfirmed, setEmailNotConfirmed] = React.useState("");
+  // Set by /auth/verify after a successful code, so the farmer gets a clear
+  // confirmation and their address is prefilled for sign-in.
+  const [justVerified, setJustVerified] = React.useState(false);
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setJustVerified(params.get("verified") === "1");
+    const email = params.get("email") || "";
+    if (email) setValue("email", email);
+  }, [setValue]);
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -51,7 +63,7 @@ export default function LoginPage() {
     if (!emailNotConfirmed) return;
     try {
       await resendVerification(emailNotConfirmed);
-      toast({ title: "Verification email sent", variant: "success" });
+      toast({ title: "New code sent", variant: "success" });
     } catch (e) {
       toast({ title: "Could not resend", description: apiErrorMessage(e), variant: "destructive" });
     }
@@ -64,22 +76,41 @@ export default function LoginPage() {
         <CardDescription>Sign in to your farm dashboard</CardDescription>
       </CardHeader>
       <CardContent>
+        {justVerified && (
+          <div className="mb-4 flex items-start gap-2 rounded-md border border-green-300 bg-green-50 p-3 text-sm">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+            <div className="flex-1">
+              <p className="font-medium text-green-900">Email verified</p>
+              <p className="text-green-800">
+                Your account is active. Sign in with the password you chose.
+              </p>
+            </div>
+          </div>
+        )}
         {emailNotConfirmed && (
           <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
             <Mail className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
             <div className="flex-1">
               <p className="font-medium text-amber-900">Email not verified</p>
               <p className="text-amber-800">
-                Check your inbox for the verification link sent to{" "}
-                <span className="font-medium">{emailNotConfirmed}</span>. Once you
-                click it, come back and sign in.
+                Enter the 6-digit code we emailed to{" "}
+                <span className="font-medium">{emailNotConfirmed}</span> to activate
+                your account.
               </p>
-              <button
-                onClick={handleResend}
-                className="mt-1 text-xs font-medium text-leaf-700 hover:underline"
-              >
-                Resend verification email
-              </button>
+              <div className="mt-1 flex items-center gap-3">
+                <Link
+                  href={`/auth/verify?email=${encodeURIComponent(emailNotConfirmed)}`}
+                  className="text-xs font-medium text-leaf-700 hover:underline"
+                >
+                  Enter your code
+                </Link>
+                <button
+                  onClick={handleResend}
+                  className="text-xs font-medium text-leaf-700 hover:underline"
+                >
+                  Resend code
+                </button>
+              </div>
             </div>
           </div>
         )}

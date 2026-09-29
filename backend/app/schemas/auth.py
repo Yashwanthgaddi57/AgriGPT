@@ -37,11 +37,22 @@ class AuthResponse(BaseModel):
     user: dict
 
 
+class VerifyEmailRequest(BaseModel):
+    """Confirm a signup with the emailed 6-digit code."""
+
+    email: EmailStr | None = None
+    # Generous upper bound; the code itself is validated against our store.
+    code: str | None = Field(default=None, max_length=12)
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
 class ResetPasswordRequest(BaseModel):
+    """Consume an emailed reset token and set a new password."""
+
+    token: str
     password: str = Field(min_length=8, max_length=128)
 
 

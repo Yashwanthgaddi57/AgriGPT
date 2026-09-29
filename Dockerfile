@@ -1,9 +1,7 @@
-# Root Dockerfile for Render's Docker-runtime backend service
-# (agrigpt-api-v2 builds with the repository root as build context).
+# Root Dockerfile — FastAPI backend container
 #
 # NOTE: run exactly ONE uvicorn worker — APScheduler must execute once.
-# Multiple workers would duplicate weather/market alert notifications
-# (see the note in render.yaml).
+# Multiple workers would duplicate weather/market alert notifications.
 FROM python:3.12-slim
 
 WORKDIR /app

@@ -12,13 +12,21 @@ interface AuthState {
   loading: boolean;
   initialized: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterData) => Promise<"authenticated" | "confirm_email">;
+  register: (data: RegisterData) => Promise<RegisterOutcome>;
   resendVerification: (email: string) => Promise<void>;
-  verifyEmail: (token: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
+}
+
+export interface RegisterOutcome {
+  status: "authenticated" | "confirm_email";
+  /** False when the backend could not hand the code to the mail provider. */
+  verificationSent: boolean;
+  /** Dev-only: the code itself when no mail provider is configured. */
+  devCode?: string;
 }
 
 export interface RegisterData {
@@ -123,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [fetchProfile]
   );
 
-  const register = React.useCallback(async (data: RegisterData) => {
+  const register = React.useCallback(async (data: RegisterData): Promise<RegisterOutcome> => {
     setLoading(true);
     try {
       const res = await api.post("/auth/register", data);
@@ -137,9 +145,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })
         );
         await fetchProfile();
-        return "authenticated" as const;
+        return { status: "authenticated", verificationSent: false };
       }
-      return "confirm_email" as const;
+      return {
+        status: "confirm_email",
+        // Treat a missing field as sent; only an explicit false means the
+        // provider refused the mail and the user must resend it.
+        verificationSent: res.data?.verification_sent !== false,
+        // Present only outside production when email delivery is unavailable.
+        devCode: res.data?.dev_code || undefined,
+      };
     } finally {
       setLoading(false);
     }
@@ -149,8 +164,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await api.post("/auth/resend-verification", { email });
   }, []);
 
-  const verifyEmail = React.useCallback(async (token: string) => {
-    await api.post("/auth/verify-email", { token });
+  const verifyEmail = React.useCallback(async (email: string, code: string) => {
+    // Confirming activates the account but does not mint a session — no
+    // password is available at this point — so the caller sends the farmer to
+    // the login form afterwards.
+    await api.post("/auth/verify-email", { email, code });
   }, []);
 
   const signInWithGoogle = React.useCallback(async () => {
