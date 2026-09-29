@@ -5,6 +5,10 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("SUPABASE_DB_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test-key")
 os.environ.setdefault("SCHEDULER_ENABLED", "false")
+# Hermetic payments: the developer's .env may hold real Razorpay test keys,
+# which would flip payments_enabled and break the 501-contract tests.
+os.environ["RAZORPAY_KEY_ID"] = ""
+os.environ["RAZORPAY_KEY_SECRET"] = ""
 # Hermetic cache: point Redis at an unused port so the cache module falls back
 # to its in-process store (the suite must never read/write a real Redis —
 # a running local Redis would otherwise leak state across test processes).
