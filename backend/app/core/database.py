@@ -157,35 +157,33 @@ def init_db() -> None:
     engine = get_engine()
     try:
         inspector = sqlalchemy.inspect(engine)
-        tables = inspector.get_table_names()
+        tables = set(inspector.get_table_names())
     except Exception as e:
         logger.warning("Schema check failed (%s) — assuming provisioned", e)
         return
+
+    created = _create_missing_tables(engine, logger)
     if not tables:
-        logger.warning("Database is empty — creating schema from models (run schema.sql/alembic for the canonical DDL)")
-        from app.models import (  # noqa: F401  (register mappers)
-            Activity,
-            AgentLog,
-            ChatMessage,
-            ChatSession,
-            DiseaseReport,
-            Expense,
-            Farm,
-            Harvest,
-            MarketPrediction,
-            Notification,
-            ProfitPrediction,
-            Recommendation,
-            User,
-            WeatherRecord,
-        )
-        Base.metadata.create_all(bind=engine)
-        logger.info("Created initial database schema")
+        logger.info("Created initial database schema: %s", sorted(created))
         return
 
     # Schema exists: apply additive-only auto-migrations so deploys never
     # break auth on a schema drift (e.g. new users.plan column).
     _auto_migrate_postgres(engine, logger)
+
+
+def _create_missing_tables(engine, logger) -> set[str]:
+    """Create mapped tables absent from an existing schema without altering it."""
+    import sqlalchemy
+
+    from app import models as _models  # noqa: F401 — register every mapped table
+
+    before = set(sqlalchemy.inspect(engine).get_table_names())
+    Base.metadata.create_all(bind=engine)
+    created = set(sqlalchemy.inspect(engine).get_table_names()) - before
+    if created:
+        logger.info("Created missing database tables: %s", sorted(created))
+    return created
 
 
 def init_local_db() -> None:
