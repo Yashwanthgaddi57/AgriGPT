@@ -68,6 +68,15 @@ def _is_sqlite(url: str) -> bool:
     return url.startswith("sqlite")
 
 
+def _normalize_database_url(url: str) -> str:
+    """Use the installed psycopg v3 driver for PostgreSQL URLs without a driver."""
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
+
+
 _engine = None
 _SessionLocal: sessionmaker | None = None
 
@@ -96,7 +105,7 @@ def _configure_sqlite(engine) -> None:
 def get_engine():
     global _engine, _SessionLocal
     if _engine is None:
-        url = settings.SUPABASE_DB_URL
+        url = _normalize_database_url(settings.SUPABASE_DB_URL)
         kwargs: dict[str, Any] = {"pool_pre_ping": True, "echo": False}
         if _is_sqlite(url):
             # SQLite permits a single writer and its defaults fail fast: if a
