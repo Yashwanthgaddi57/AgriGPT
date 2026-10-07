@@ -13,6 +13,15 @@ os.environ["RAZORPAY_KEY_SECRET"] = ""
 # to its in-process store (the suite must never read/write a real Redis —
 # a running local Redis would otherwise leak state across test processes).
 os.environ["REDIS_URL"] = "redis://localhost:6390/15"
+# Hermetic auth: force local-auth mode regardless of backend/.env. A real
+# SUPABASE_URL (the developer's actual project) flips auth out of local mode,
+# so tests would hit — and create users in — a live Supabase project and the
+# local-auth tests fail on Supabase-JWT verification. Assigned (not setdefault)
+# so a stray exported var cannot leak a live project into the suite either.
+os.environ["SUPABASE_URL"] = "https://YOUR_PROJECT_REF.supabase.co"
+os.environ["SUPABASE_ANON_KEY"] = "your-anon-key"
+os.environ["SUPABASE_SERVICE_KEY"] = "your-service-role-key"
+os.environ["SUPABASE_JWT_SECRET"] = "your-supabase-jwt-secret"
 
 import pytest
 from fastapi.testclient import TestClient
