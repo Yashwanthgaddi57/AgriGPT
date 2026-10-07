@@ -17,7 +17,7 @@ services:
       - key: FRONTEND_APP_URL
         value: https://agrigpt-web.onrender.com
       - key: BACKEND_CORS_ORIGINS
-        value: https://agrigpt-web.onrender.com
+        value: '["https://agrigpt-web.onrender.com"]'
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
