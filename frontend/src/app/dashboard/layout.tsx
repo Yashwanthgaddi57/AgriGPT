@@ -38,9 +38,11 @@ import { PageAnimatePresence, PageTransition } from "@/components/page-transitio
 import { useAuth } from "@/contexts/auth-context";
 import {
   useMarkNotificationsRead,
+  useMyLocation,
   useNotifications,
 } from "@/hooks/use-api";
 import { LangSwitch, useLang } from "@/lib/i18n";
+import { formatLocationLabel } from "@/lib/location-label";
 import { cn, formatDate } from "@/lib/utils";
 
 const nav = [
@@ -53,7 +55,7 @@ const nav = [
   { href: "/dashboard/farm-log", label: "Farm Log", icon: NotebookPen },
   { href: "/dashboard/crops", label: "Crop Advisor", icon: Leaf },
   { href: "/dashboard/profit", label: "AI Profit Predictor", icon: Wallet },
-  { href: "/dashboard/vendors", label: "Vendors Near Me", icon: Store },
+  { href: "/dashboard/vendors", label: "Nearby Agri Services", icon: Store },
   { href: "/dashboard/analytics", label: "Analytics", icon: Sparkles },
   { href: "/dashboard/subscription", label: "Subscription", icon: Crown },
 ];
@@ -123,6 +125,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
+  // Live farm location — the auth profile is fetched once, so read the
+  // resolver instead to reflect a location the farmer just allowed/saved.
+  const { data: myLocation } = useMyLocation();
+  const locationLabel = formatLocationLabel(myLocation, user, null);
+
   React.useEffect(() => {
     if (initialized && !loading && !user) router.replace("/auth/login");
   }, [initialized, loading, user, router]);
@@ -188,7 +195,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium">{user.name}</span>
               <span className="block truncate text-xs text-muted-foreground">
-                {user.district ?? "India"}
+                {locationLabel || "Set location"}
               </span>
             </span>
           </Link>
@@ -211,9 +218,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <button className="lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </button>
-          <div className="hidden text-sm text-muted-foreground lg:block">
-            {user.village ? `${user.village}, ` : ""}
-            {user.district ?? ""} · {user.farm_size_acres} acres
+          <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
+            {locationLabel ? (
+              <span className="max-w-[280px] truncate" title={locationLabel}>📍 {locationLabel}</span>
+            ) : (
+              <span>📍 Set location</span>
+            )}
+            <span aria-hidden>·</span>
+            <span>{user.farm_size_acres} acres</span>
           </div>
           <div className="flex items-center gap-2">
             <LangSwitch />

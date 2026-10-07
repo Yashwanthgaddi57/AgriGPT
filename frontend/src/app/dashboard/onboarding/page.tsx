@@ -7,7 +7,7 @@
  */
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Crosshair, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,9 +21,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GeoAutocomplete } from "@/components/location/GeoAutocomplete";
-import { useSavePlantingDate, useUpdateProfile } from "@/hooks/use-api";
+import { useSaveLocation, useSavePlantingDate, useUpdateProfile } from "@/hooks/use-api";
 import { suggestDistricts, suggestStates } from "@/lib/india-geo";
-import { apiErrorMessage } from "@/lib/api";
+import { api, apiErrorMessage } from "@/lib/api";
 import { trackEvent, EVENTS } from "@/lib/events";
 import { useLang, type Lang } from "@/lib/i18n";
 import { useToast } from "@/hooks/use-toast";
@@ -49,9 +49,12 @@ export default function OnboardingPage() {
 
   const [step, setStep] = React.useState(1);
   const [saving, setSaving] = React.useState(false);
+  const [gpsBusy, setGpsBusy] = React.useState(false);
+  const [gpsSaved, setGpsSaved] = React.useState(false);
   const [form, setForm] = React.useState({
     state: "",
     district: "",
+    village: "",
     farm_size_acres: "",
     soil_type: "unknown",
     water_availability: "rainfed",
@@ -64,12 +67,84 @@ export default function OnboardingPage() {
   const total = 4;
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
+  // Location is the required first ask: weather, mandi prices, vendors and
+  // crop recommendations all resolve from it (GPS coords > district text).
+  const hasLocation = Boolean(form.state.trim() || form.district.trim() || gpsSaved);
+
+  const saveLocation = useSaveLocation();
+  const useGps = () => {
+    if (!navigator.geolocation) {
+      toast({
+        title: "Location not available",
+        description: "This device doesn't support location. Type your district and state below.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setGpsBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      async (p) => {
+        try {
+          // Reverse-geocode the fix into village/district/state so the whole
+          // app (and the text fallback) shows a real place name.
+          let parts: { village?: string | null; district?: string | null; state?: string | null } = {};
+          try {
+            const rev = (
+              await api.get(`/geo/reverse?lat=${p.coords.latitude}&lon=${p.coords.longitude}`)
+            ).data as { village?: string | null; district?: string | null; state?: string | null };
+            parts = {
+              village: rev?.village ?? null,
+              district: rev?.district ?? null,
+              state: rev?.state ?? null,
+            };
+          } catch {
+            /* best-effort; coordinates alone still drive everything */
+          }
+          await saveLocation.mutateAsync({
+            latitude: p.coords.latitude,
+            longitude: p.coords.longitude,
+            source: "gps",
+            ...(parts.village ? { village: parts.village } : {}),
+            ...(parts.district ? { district: parts.district } : {}),
+            ...(parts.state ? { state: parts.state } : {}),
+          });
+          setForm((f) => ({
+            ...f,
+            ...(parts.village ? { village: parts.village! } : {}),
+            ...(parts.district ? { district: parts.district! } : {}),
+            ...(parts.state ? { state: parts.state! } : {}),
+          }));
+          setGpsSaved(true);
+          toast({
+            title: "Location saved 📍",
+            description: "Weather, prices and nearby vendors will now follow your farm.",
+            variant: "success",
+          });
+        } catch (e) {
+          toast({ title: "Could not save location", description: apiErrorMessage(e), variant: "destructive" });
+        } finally {
+          setGpsBusy(false);
+        }
+      },
+      () => {
+        setGpsBusy(false);
+        toast({
+          title: "Couldn't read your location",
+          description: "Allow the permission or type your district and state below.",
+          variant: "destructive",
+        });
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
+  };
+
   const finish = async () => {
     setSaving(true);
     try {
       await updateProfile.mutateAsync({
         state: form.state || undefined,
         district: form.district || undefined,
+        village: form.village || undefined,
         farm_size_acres: form.farm_size_acres ? Number(form.farm_size_acres) : undefined,
         soil_type: form.soil_type,
         water_availability: form.water_availability,
@@ -85,6 +160,9 @@ export default function OnboardingPage() {
         });
       }
       toast({ title: "Your farm profile is ready", variant: "success" });
+      // Mark onboarding done even if optional steps were skipped, so the
+      // location the farmer just gave isn't re-asked on every visit.
+      localStorage.setItem("agrigpt-onboarded", "1");
       router.push("/dashboard");
     } catch (e) {
       toast({ title: "Could not save", description: apiErrorMessage(e), variant: "destructive" });
@@ -115,16 +193,44 @@ export default function OnboardingPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            {step === 1 && "Where is your farm?"}
+            {step === 1 && "Where is your farm? (required)"}
             {step === 2 && "How big is it, and what's the soil like?"}
             {step === 3 && "What about water and crop?"}
             {step === 4 && "Language"}
           </CardTitle>
-          <CardDescription>Optional fields can be skipped.</CardDescription>
+          <CardDescription>
+            {step === 1
+              ? "Weather, mandi rates, vendors and crop advice all follow this location."
+              : "Optional fields can be skipped."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {step === 1 && (
             <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={useGps}
+                disabled={gpsBusy || saveLocation.isPending}
+                className="w-full gap-2"
+              >
+                {gpsBusy || saveLocation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Crosshair className="h-4 w-4" />
+                )}
+                📍 Use My Location (GPS)
+              </Button>
+              {gpsSaved && (
+                <p className="text-center text-xs text-leaf-700">
+                  GPS location saved{form.district ? ` — ${[form.village, form.district, form.state].filter(Boolean).join(", ")}` : ""}
+                </p>
+              )}
+              <div className="flex items-center gap-3">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">or enter manually</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
               <div className="space-y-2">
                 <Label>State</Label>
                 <GeoAutocomplete
@@ -214,15 +320,15 @@ export default function OnboardingPage() {
           )}
 
           <div className="flex items-center justify-between gap-2 pt-2">
-            <Button
-              variant="ghost"
-              onClick={() => (step === 1 ? router.push("/dashboard") : setStep(step - 1))}
-              disabled={saving}
-            >
-              <ArrowLeft className="mr-1 h-4 w-4" /> {step === 1 ? "Skip" : "Back"}
-            </Button>
+            {step === 1 ? (
+              <span />
+            ) : (
+              <Button variant="ghost" onClick={() => setStep(step - 1)} disabled={saving}>
+                <ArrowLeft className="mr-1 h-4 w-4" /> Back
+              </Button>
+            )}
             {step < total ? (
-              <Button onClick={() => setStep(step + 1)} className="gap-2">
+              <Button onClick={() => setStep(step + 1)} className="gap-2" disabled={step === 1 && !hasLocation}>
                 Next <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (

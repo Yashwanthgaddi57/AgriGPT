@@ -3,7 +3,8 @@
 Flow:
   1. Public pages load (landing, help, terms, privacy, not-found)
   2. Register brand-new account via /auth/register form
-  3. Onboarding wizard (fill steps if present)
+  3. Email verification (/auth/verify) — dev mode auto-fills the dev_code
+  4. Onboarding wizard (fill steps if present)
   4. Tour all dashboard pages, capture console errors
   5. Logout via UI, login again via UI
   6. Error paths: wrong password, duplicate email registration
@@ -13,6 +14,7 @@ import base64
 import json
 import os
 import random
+import re
 import string
 import subprocess
 import time
@@ -151,7 +153,7 @@ async def main():
                    btns: [...document.querySelectorAll('button')].map(b => b.textContent.trim()).slice(0, 6) }))()
         """)
         print("  form:", json.dumps(diag)[:400])
-        reg_path = await eval_js("""
+        reg_result = await eval_js("""
           (async () => {
             const setVal = (el, v) => {
               Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
@@ -174,13 +176,60 @@ async def main():
             if (!btn) throw new Error('submit button not found');
             btn.click();
             await wait(9000);
-            return location.href;
+            const t = document.body.innerText;
+            return { url: location.href,
+                     toast: (t.match(/[^\\n]*(successful|welcome|failed|code)[^\\n]*/i) || [''])[0].slice(0, 180),
+                     verify: t.includes('Verify your email') };
           })()
         """.replace("%EMAIL%", json.dumps(EMAIL)).replace("%PASSWORD%", json.dumps(PASSWORD)),
             await_promise=True)
-        print("  after submit:", reg_path)
+        print("  after submit:", json.dumps(reg_result))
         await shot("e2e_after_register")
-        record("register via UI", "/dashboard" in reg_path, f"-> {reg_path}")
+        record("register via UI", bool(reg_result) and (reg_result.get("verify") is True or "/verify" in reg_result.get("url", "") or "/dashboard" in reg_result.get("url", "")),
+               f"-> {reg_result.get('url') if reg_result else ''}")
+
+        # ---------- 2.5 Email verification (dev: backend returns dev_code) ----------
+        print("\n== 2.5 Email verification ==")
+        reg_url = (reg_result or {}).get("url", "")
+        m = re.search(r"devcode=(\d+)", reg_url)
+        dev_code = m.group(1) if m else ""
+        verified_ok = False
+        if "/verify" in reg_url:
+            ver = await eval_js("""
+              (async () => {
+                const setVal = (el, v) => {
+                  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                };
+                const wait = (ms) => new Promise(r => setTimeout(r, ms));
+                // ?devcode= prefills the code; fill it in manually only if missing
+                const dc = %DC%;
+                if (dc) {
+                  const codeInput = [...document.querySelectorAll('input')].find(i => i.id === 'verify-code' || (i.name || '').includes('code'));
+                  if (codeInput && !codeInput.value) setVal(codeInput, dc);
+                  await wait(300);
+                }
+                const btn = [...document.querySelectorAll('button')].find(b => /verify email/i.test(b.textContent || ''));
+                if (!btn) throw new Error('verify button not found');
+                btn.click();
+                await wait(6000);
+                return { url: location.href, done: document.body.innerText.includes('Email verified') };
+              })()
+            """.replace("%DC%", json.dumps(dev_code)), await_promise=True)
+            print("  verify result:", json.dumps(ver))
+            await shot("e2e_after_verify")
+            verified_ok = bool(ver) and ver.get("done") is True
+            if verified_ok:
+                cont = await eval_js("""
+                  (async () => {
+                    const btn = [...document.querySelectorAll('button')].find(b => /^sign in$/i.test(b.textContent || ''));
+                    if (btn) { btn.click(); await new Promise(r => setTimeout(r, 3000)); }
+                    return location.href;
+                  })()
+                """, await_promise=True)
+                print("  continue:", cont)
+        record("email verification", "/verify" not in reg_url or verified_ok,
+               f"(dev_code={'yes' if dev_code else 'no'})")
 
         # ---------- 3. Onboarding ----------
         print("\n== 3. Onboarding wizard ==")
@@ -317,7 +366,7 @@ async def main():
         """.replace("%EMAIL%", json.dumps(EMAIL)).replace("%PASSWORD%", json.dumps(PASSWORD)),
             await_promise=True)
         print("  after login:", login_path)
-        record("login via UI (fresh account)", "/dashboard" in login_path, f"-> {login_path}")
+        record("login via UI (verified account)", "/dashboard" in login_path, f"-> {login_path}")
 
         # ---------- 6. Error paths ----------
         print("\n== 6. Error paths ==")
@@ -339,10 +388,18 @@ async def main():
             const btn = [...document.querySelectorAll('button')]
               .find(b => /log ?in|sign ?in/i.test(b.textContent || ''));
             btn.click();
-            await wait(6000);
-            const t = document.body.innerText.toLowerCase();
-            return { url: location.href, err: t.includes('invalid') || t.includes('incorrect')
-                     || t.includes('wrong') || t.includes('failed') || t.includes('credential') };
+            // Poll: the failure toast auto-dismisses after ~5s, so a single
+            // late read misses it.
+            let err = false;
+            for (let i = 0; i < 16; i++) {
+              await wait(500);
+              const t = document.body.innerText.toLowerCase();
+              if (t.includes('invalid') || t.includes('incorrect') || t.includes('wrong')
+                  || t.includes('failed') || t.includes('credential') || t.includes('sign in failed')) {
+                err = true; break;
+              }
+            }
+            return { url: location.href, err };
           })()
         """.replace("%EMAIL%", json.dumps(EMAIL)), await_promise=True)
         print("  wrong password:", json.dumps(wrong))
@@ -374,7 +431,7 @@ async def main():
             await wait(8000);
             const t = document.body.innerText.toLowerCase();
             return { url: location.href, flagged: t.includes('already') || t.includes('exists')
-                     || t.includes('registered') };
+                     || t.includes('registered') || location.href.includes('/auth/login') };
           })()
         """.replace("%EMAIL%", json.dumps(EMAIL)).replace("%PASSWORD%", json.dumps(PASSWORD)),
             await_promise=True)

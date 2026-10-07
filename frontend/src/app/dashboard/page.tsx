@@ -18,7 +18,9 @@ import {
   CloudRain,
   CloudSun,
   Coins,
+  Crosshair,
   Droplets,
+  Loader2,
   Mic,
   ScanSearch,
   Sprout,
@@ -32,8 +34,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardTicker } from "@/components/dashboard/price-ticker";
+import { LocationPermissionPrompt } from "@/components/location/LocationPermissionPrompt";
 import { FadeIn } from "@/components/page-transition";
-import { useProfile, useTodayPlan, useWeather } from "@/hooks/use-api";
+import { useMyLocation, useProfile, useTodayPlan, useWeather } from "@/hooks/use-api";
+import { useDetectLocation } from "@/hooks/use-detect-location";
+import { useToast } from "@/hooks/use-toast";
+import { formatLocationLabel } from "@/lib/location-label";
 import { formatCompactINR, formatINR, cn } from "@/lib/utils";
 import type { WeatherDay } from "@/types";
 
@@ -88,6 +94,7 @@ function asOfLabel(asOf: string) {
 
 export default function FarmHomePage() {
   const { data: profile } = useProfile();
+  const { data: myLocation } = useMyLocation();
   const { data: plan, isLoading, error, refetch } = useTodayPlan();
   const { data: weather, isLoading: weatherLoading } = useWeather(profile?.district ?? undefined);
   const [showFullPlan, setShowFullPlan] = React.useState(false);
@@ -99,6 +106,25 @@ export default function FarmHomePage() {
   const name = profile?.name?.split(" ")[0] ?? "Farmer";
   const farm = plan?.farm;
   const health = plan?.crop_health;
+
+  // Current location shown across the page (GPS fix > resolver > profile > farm).
+  const locationLabel = formatLocationLabel(myLocation, profile, farm);
+
+  // Manual "where am I now" refresh for when the farmer has moved.
+  const detectLocation = useDetectLocation();
+  const { toast } = useToast();
+  const updateLocation = async () => {
+    const fix = await detectLocation.detect();
+    if (fix) {
+      toast({ title: "Location updated 📍", description: "Showing where you are now.", variant: "success" });
+    } else {
+      toast({
+        title: "Could not update location",
+        description: "Allow location access in your browser, or set it manually.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const quickActions = [
     { href: "/dashboard/disease", label: "Scan Crop", icon: Camera, primary: true },
@@ -141,13 +167,16 @@ export default function FarmHomePage() {
 
   return (
     <div className="space-y-4 lg:space-y-6">
+      {/* ---------- Location permission (§3: everything follows the farm) ---------- */}
+      <LocationPermissionPrompt />
+
       {/* ---------- Header: greeting + compact farm summary (§3) ---------- */}
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="font-display text-[20px] font-medium tracking-[0.24px]">
             {greeting()}, {name} 👋
           </h1>
-          {farm && (farm.size_acres > 0 || farm.crop || farm.district) ? (
+          {farm && (farm.size_acres > 0 || farm.crop || locationLabel) ? (
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
               <span>🌱 {farm.size_acres} acres</span>
               {farm.crop && (
@@ -162,10 +191,10 @@ export default function FarmHomePage() {
                   <span>📅 Day {farm.crop_age_days}</span>
                 </>
               )}
-              {farm.district && (
+              {locationLabel && (
                 <>
                   <span aria-hidden>·</span>
-                  <span className="truncate">📍 {farm.district}</span>
+                  <span className="truncate">📍 {locationLabel}</span>
                 </>
               )}
             </p>
@@ -178,11 +207,27 @@ export default function FarmHomePage() {
             </p>
           )}
         </div>
-        <Button asChild size="icon" variant="outline" className="h-11 w-11 shrink-0 rounded-full" aria-label="Ask AgriGPT by voice">
-          <Link href="/dashboard/copilot">
-            <Mic className="h-5 w-5" />
-          </Link>
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={updateLocation}
+            disabled={detectLocation.busy}
+            aria-label="Update to my current location"
+            title="Update to my current location"
+            className="flex h-11 w-11 items-center justify-center rounded-full border bg-background text-muted-foreground hover:bg-accent disabled:opacity-50"
+          >
+            {detectLocation.busy ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Crosshair className="h-5 w-5" />
+            )}
+          </button>
+          <Button asChild size="icon" variant="outline" className="h-11 w-11 shrink-0 rounded-full" aria-label="Ask AgriGPT by voice">
+            <Link href="/dashboard/copilot">
+              <Mic className="h-5 w-5" />
+            </Link>
+          </Button>
+        </div>
       </header>
 
       {/* Desktop "Farm at a glance" summary row (§9) — hidden on mobile where the
@@ -203,9 +248,15 @@ export default function FarmHomePage() {
           </div>
           <div className="rounded-xl border bg-card p-3">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Location</p>
-            <p className="mt-0.5 truncate text-sm font-bold">
-              📍 {farm.district ?? "India"}
-            </p>
+            {locationLabel ? (
+              <p className="mt-0.5 truncate text-sm font-bold" title={locationLabel}>
+                📍 {locationLabel}
+              </p>
+            ) : (
+              <Link href="/dashboard/plan" className="mt-0.5 inline-block text-sm font-bold text-leaf-700 underline">
+                Set location
+              </Link>
+            )}
           </div>
         </div>
       )}

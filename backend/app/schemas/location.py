@@ -55,6 +55,14 @@ class VendorOut(BaseModel):
     # True only for the nearest-3 fallback shown when the requested radius had
     # no vendors at all — the UI must label these as outside the radius.
     beyond_radius: bool = False
+    # Extra fields from the agri-service directory (all optional: absent data is
+    # simply omitted, never invented).
+    subcategory: str | None = None
+    website: str | None = None
+    pincode: str | None = None
+    rating: float | None = None
+    review_count: int | None = None
+    opening_hours: str | None = None
 
 
 class NearbyVendorsOut(BaseModel):
@@ -62,3 +70,49 @@ class NearbyVendorsOut(BaseModel):
     radius_km: int = 50  # requested radius, strictly applied
     total: int  # count of items actually within radius_km
     items: list[VendorOut]
+
+
+class AgriServiceOut(BaseModel):
+    """One nearby agricultural business, shaped for the map + result list.
+
+    Every optional field is omitted (null) rather than guessed when the source
+    has no data — the UI hides what is missing instead of inventing it.
+    """
+
+    id: str
+    name: str
+    category: str
+    subcategory: str | None = None
+    description: str | None = None
+    latitude: float
+    longitude: float
+    address: str | None = None
+    village: str | None = None
+    city: str | None = None
+    district: str | None = None
+    state: str | None = None
+    pincode: str | None = None
+    phone: str | None = None
+    website: str | None = None
+    rating: float | None = None
+    review_count: int | None = None
+    opening_hours: str | None = None
+    distance_km: float
+    crops: list[str] = []
+    matches_crop: bool = False
+    beyond_radius: bool = False
+    # Human-readable data source + the raw machine value behind it.
+    source: str = "OpenStreetMap"
+    source_kind: str = "osm"
+    last_updated: datetime | None = None
+
+
+class AgriNearbyOut(BaseModel):
+    """`GET /agri/nearby` response."""
+
+    results: list[AgriServiceOut]
+    location: LocationOut
+    radius_km: int
+    total: int
+    categories: list[str] = []
+    note: str | None = None

@@ -88,6 +88,13 @@ VENDORS = [
     ("Ganga Greenhouse Supplies", "equipment", "Polyhouse structures, shade nets, mulch film", "+91 98730 22119", "Meerut Road, Ghaziabad", "Ghaziabad", "Ghaziabad", "Uttar Pradesh", 28.6800, 77.4500, ["tomato", "flowers"]),
     ("Bihar Mango Orchard Buyers", "produce_buyer", "Mango procurement at orchard; carton-grade sorting", "+91 98350 33228", "Bhagalpur", "Bhagalpur", "Bhagalpur", "Bihar", 25.2400, 86.9800, ["mango"]),
     ("Coastal Coconut Traders", "produce_buyer", "Coconut and arecanut procurement; tender-coconut supply chain", "+91 94480 44337", "Tiptur", "Tumkur", "Tumkur", "Karnataka", 13.2570, 76.4780, ["coconut", "areca"]),
+    # ---- Wholesale / vegetable markets (public APMC yards, no phone seeded) ----
+    ("Guntur APMC Yard", "market", "Chilli, turmeric and cotton wholesale market yard", None, "Guntur APMC Road", "Guntur", "Guntur", "Andhra Pradesh", 16.3060, 80.4400, ["chilli", "turmeric", "cotton"]),
+    ("Bowenpally Vegetable Market", "market", "Wholesale vegetable market serving Hyderabad", None, "Bowenpally, Secunderabad", "Secunderabad", "Hyderabad", "Telangana", 17.4700, 78.4900, ["tomato", "onion", "brinjal"]),
+    ("Warangal Agricultural Market Yard", "market", "Paddy, cotton and chilli market yard", None, "Warangal", "Warangal", "Warangal", "Telangana", 17.9780, 79.5940, ["rice", "cotton", "chilli"]),
+    ("Nashik APMC Market", "market", "Onion, grape and vegetable wholesale market", None, "Panchavati, Nashik", "Nashik", "Nashik", "Maharashtra", 20.0200, 73.7900, ["onion", "grapes", "tomato"]),
+    ("Vijayawada Agricultural Market Yard", "market", "Paddy, maize and chilli market yard", None, "Benz Circle, Vijayawada", "Vijayawada", "Krishna", "Andhra Pradesh", 16.5000, 80.6400, ["rice", "maize", "chilli"]),
+    ("Indore Choithram Mandi", "market", "Soybean, gram and wheat wholesale market", None, "Choithram Mandi, Indore", "Indore", "Indore", "Madhya Pradesh", 22.6900, 75.8400, ["soybean", "gram", "wheat"]),
 ]
 
 

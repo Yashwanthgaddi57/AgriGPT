@@ -6,7 +6,6 @@ import {
   BadgeCheck,
   Check,
   CloudSun,
-  Info,
   LineChart,
   MessageSquareHeart,
   ScanSearch,
@@ -218,7 +217,7 @@ const plans = [
     price: "₹0",
     period: "forever",
     description: "Core AI tools for smallholders.",
-    features: ["5 crop plans / month", "10 disease scans / month", "Weather intelligence", "AI Copilot (20 messages/day)", "Profit calculator"],
+    features: ["5 crop plans (per account)", "10 disease scans (per account)", "Weather intelligence", "AI Copilot (20 messages)", "Profit calculator"],
     cta: "Start free",
     highlight: false,
   },
@@ -297,14 +296,6 @@ export function Pricing() {
             </motion.div>
           ))}
         </div>
-        <p className="mx-auto mt-8 flex max-w-2xl items-start gap-2 text-center text-xs text-muted-foreground">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            * Organization (FPO) features are in early access — the dashboard is not
-            fully available yet. Online payments are being integrated; upgrades are
-            currently handled by our team.
-          </span>
-        </p>
       </div>
     </section>
   );
@@ -343,34 +334,9 @@ export function ProductDemo() {
   );
 }
 
-// ---------------- Safety / Disclaimer ----------------
-export function Safety() {
-  return (
-    <section className="py-16">
-      <div className="container max-w-3xl">
-        <Card className="border border-amber-500/25 bg-amber-50">
-          <CardContent className="flex items-start gap-3 py-5">
-            <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-            <div className="text-sm leading-relaxed text-muted-foreground">
-              <p className="mb-1 font-medium text-foreground">Important</p>
-              AgriGPT provides AI-generated estimates and decision-support
-              suggestions. Crop plans, profit projections and disease
-              analyses are <strong>not guarantees</strong> — actual results
-              depend on weather, soil, pests, market conditions and farming
-              practices. For pesticides and chemical treatments, always follow
-              the product label and confirm with your local agriculture
-              officer or a licensed agronomist before high-stakes decisions.
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </section>
-  );
-}
-
 // ---------------- FAQ ----------------
 const faqs = [
-  { q: "Is AgriGPT free to use?", a: "Yes — the Kisan Free plan includes monthly crop plans, disease scans, weather intelligence, the profit calculator and limited copilot chats, free forever. Pro removes the usage limits and adds market intelligence features." },
+  { q: "Is AgriGPT free to use?", a: "Yes — the Kisan Free plan includes 5 crop plans, 10 disease scans, 20 copilot messages, weather intelligence and the profit calculator, free forever. The free allowance is per account (one-time, not monthly). Pro removes all usage limits and adds market intelligence." },
   { q: "Are the profit numbers guaranteed?", a: "No. All cost, revenue and profit figures are AI-generated estimates based on the inputs you provide and typical conditions for your area. Actual results depend on weather, pests, soil, market prices and farming practices. Treat them as decision support, not promises." },
   { q: "How reliable is disease detection?", a: "The AI reports a confidence level with every analysis and lists alternative explanations for the same symptoms. Low-confidence scans are flagged as inconclusive. Always confirm important diagnoses with your local agriculture officer before buying treatments." },
   { q: "Where do market prices come from?", a: "Live prices come from India's Agmarknet APMC feed (via data.gov.in) and always show the source, unit and last-updated date. When live data is unavailable, AgriGPT says so rather than making up numbers." },

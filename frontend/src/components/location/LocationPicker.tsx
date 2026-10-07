@@ -69,21 +69,25 @@ export function LocationPicker({ initial, onSave, saving }: Props) {
     try {
       const res = await api.get(`/geo/reverse?lat=${lat}&lon=${lng}`);
       const d = res.data || {};
-      setAddress({ village: d.village ?? null, district: d.district ?? null, state: d.state ?? null });
+      const parts = { village: d.village ?? null, district: d.district ?? null, state: d.state ?? null };
+      setAddress(parts);
       setLabel(d.display_name ? String(d.display_name).split(",").slice(0, 3).join(", ") : `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      return parts;
     } catch {
       setAddress({});
       setLabel(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      return { village: null, district: null, state: null };
     }
   }
 
   function dropPin(lat: number, lng: number) {
     setPos({ lat, lng });
     const m = map.current;
-    if (!m) return;
-    if (marker.current) marker.current.setLatLng([lat, lng]);
-    else marker.current = L.marker([lat, lng], { icon }).addTo(m);
-    describe(lat, lng);
+    if (m) {
+      if (marker.current) marker.current.setLatLng([lat, lng]);
+      else marker.current = L.marker([lat, lng], { icon }).addTo(m);
+    }
+    return describe(lat, lng);
   }
 
   const useGps = () => {
@@ -94,12 +98,14 @@ export function LocationPicker({ initial, onSave, saving }: Props) {
     }
     setBusy("gps");
     navigator.geolocation.getCurrentPosition(
-      (p) => {
+      async (p) => {
         const { latitude, longitude } = p.coords;
         map.current?.setView([latitude, longitude], 15);
-        dropPin(latitude, longitude);
         setBusy(null);
-        save(latitude, longitude, "gps");
+        // Resolve the fix first: the saved row must carry the names that match
+        // these coordinates rather than the previous pin's address.
+        const parts = await dropPin(latitude, longitude);
+        await save(latitude, longitude, "gps", parts);
       },
       () => {
         setError("Could not get GPS fix. Drop a pin on the map instead.");

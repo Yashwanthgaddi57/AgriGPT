@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, Radio } from "lucide-react";
+import { Activity, MapPin, Radio } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePriceTicker } from "@/hooks/use-api";
@@ -37,6 +37,12 @@ export function DashboardTicker() {
           <Radio className={cn("h-3.5 w-3.5 text-leaf-600", allLive && "animate-pulse")} />
           {allLive ? "Live mandi prices" : "Latest available mandi prices"}
         </span>
+        {data.location?.label && (
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-leaf-50 px-2.5 py-1 text-xs font-medium text-leaf-700">
+            <MapPin className="h-3 w-3" />
+            {data.location.label}
+          </span>
+        )}
         {data.items.map((item) => {
           const up = item.trend_weekly_pct >= 0;
           return (

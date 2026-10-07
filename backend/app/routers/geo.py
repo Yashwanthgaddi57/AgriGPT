@@ -29,12 +29,14 @@ async def save_location(payload: dict, user: CurrentUser, db: DBSession):
     user.latitude = data.latitude
     user.longitude = data.longitude
     user.location_source = data.source
-    if data.village is not None:
-        user.village = data.village
-    if data.district is not None:
-        user.district = data.district
-    if data.state is not None:
-        user.state = data.state
+    # Coordinates are authoritative. A client that sends an address part
+    # explicitly (including null for "unknown") replaces the stored value, so a
+    # stale place name can never contradict the coordinates it was saved with
+    # (e.g. coordinates in Pune while the profile still said "Telangana").
+    # Fields the caller omits are left untouched for backward compatibility.
+    for field in ("village", "district", "state"):
+        if field in data.model_fields_set:
+            setattr(user, field, getattr(data, field) or None)
     db.add(user)
     db.flush()
     return (await resolve_location_async(db, user)).to_dict()

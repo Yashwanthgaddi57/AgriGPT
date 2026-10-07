@@ -41,6 +41,10 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
         // Mercury named surfaces (light theme)
         onyx: "#f7f7fa",
         graphite: "#ffffff",

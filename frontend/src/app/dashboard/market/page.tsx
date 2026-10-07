@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Loader2, TrendingUp } from "lucide-react";
+import { Loader2, MapPin, TrendingUp } from "lucide-react";
 
 import { AlertTriangle, BadgeCheck, Database } from "lucide-react";
 
@@ -25,6 +25,7 @@ import {
   useAnalyzeMarket,
   useMarketCompare,
   useMarketPredictions,
+  useMyLocation,
   useNearbyMandis,
 } from "@/hooks/use-api";
 import { apiErrorMessage } from "@/lib/api";
@@ -44,6 +45,7 @@ export default function MarketPage() {
   const { toast } = useToast();
   const [page, setPage] = React.useState(1);
   const { data: history } = useMarketPredictions(page);
+  const { data: myLoc } = useMyLocation();
 
   const [crop, setCrop] = React.useState("");
   const [market, setMarket] = React.useState("");
@@ -71,8 +73,14 @@ export default function MarketPage() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-[22px] font-medium leading-tight tracking-[0.32px]">Market Prices</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
           Latest prices, trends and AI sell/wait guidance per crop.
+          {myLoc?.label && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-leaf-50 px-2.5 py-0.5 text-xs font-medium text-leaf-700">
+              <MapPin className="h-3 w-3" />
+              {myLoc.label}
+            </span>
+          )}
         </p>
       </div>
 

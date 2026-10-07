@@ -29,6 +29,9 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(Text)
     role: Mapped[str] = mapped_column(String(30), default="farmer")
     plan: Mapped[str] = mapped_column(String(20), default="free")  # free | pro | cooperative
+    # Local-auth mode only: set True once the emailed 6-digit code is confirmed.
+    # Supabase mode reads auth.users.email_confirmed_at instead of this column.
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

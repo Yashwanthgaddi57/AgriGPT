@@ -21,10 +21,13 @@ from app.core.password_reset import (
 )
 from app.core.exceptions import AuthError, ConflictError
 from app.core.local_auth import (
+    EmailNotVerifiedError,
     authenticate_local_user,
+    confirm_local_email,
     decode_local_token,
     issue_local_tokens,
     local_auth_enabled,
+    local_user_exists,
     register_local_user,
     revoke_local_token,
 )
@@ -58,17 +61,38 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     """
     if local_auth_enabled():
         try:
-            user = register_local_user(db, payload.model_dump())
+            register_local_user(db, payload.model_dump())
         except ValueError as e:
             raise AuthError(str(e)) from e
-        tokens = issue_local_tokens(user)
-        return JSONResponse(
-            status_code=status.HTTP_201_CREATED,
-            content={
-                "message": "Registration successful.",
-                **tokens,
-            },
-        )
+        if not settings.email_verification_required:
+            # Verification explicitly off: auto-confirm (mirrors the Supabase
+            # path) and sign the farmer in immediately.
+            confirm_local_email(db, payload.email.strip().lower())
+            user = authenticate_local_user(db, payload.email, payload.password)
+            return JSONResponse(
+                status_code=status.HTTP_201_CREATED,
+                content={"message": "Registration successful.", **issue_local_tokens(user)},
+            )
+        # Same contract as the Supabase path: create unconfirmed, email our own
+        # 6-digit code, and hand out no session until the code is entered.
+        sent, code = await deliver_verification_code(db, payload.email)
+        content: dict = {
+            "message": (
+                "Registration successful. We emailed you a 6-digit code — "
+                "enter it to activate your account."
+            ),
+            "email": payload.email,
+            "needs_email_confirmation": True,
+            "verification_sent": sent,
+        }
+        if not sent:
+            content["message"] = (
+                "Registration successful, but we could not send the verification "
+                "email. Request a new code from the verification screen."
+            )
+            if not settings.is_production:
+                content["dev_code"] = code
+        return JSONResponse(status_code=status.HTTP_201_CREATED, content=content)
 
     metadata = {
         "name": payload.name,
@@ -135,7 +159,14 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)):
     email = payload.email.strip().lower()
     logger.info("Login attempt for %s", email)
     if local_auth_enabled():
-        user = authenticate_local_user(db, payload.email, payload.password)
+        try:
+            user = authenticate_local_user(db, payload.email, payload.password)
+        except EmailNotVerifiedError:
+            logger.warning("Login blocked (local mode) for %s: email not verified", email)
+            raise AuthError(
+                "Please confirm your email first — enter the 6-digit code we "
+                "emailed you, or request a new one."
+            )
         if not user:
             logger.warning("Login failed (local mode) for %s: invalid credentials", email)
             raise AuthError("Invalid email or password")
@@ -202,12 +233,10 @@ async def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db
     """Confirm a signup with the 6-digit code we emailed.
 
     The code belongs to this backend, so it is checked against our own store
-    and the account is only then marked confirmed in Supabase. No session is
-    minted: the farmer signs in with the password they chose at signup.
+    and the account is only then marked confirmed — in Supabase, or in the
+    local users table when running without Supabase. No session is minted:
+    the farmer signs in with the password they chose at signup.
     """
-    if local_auth_enabled():
-        raise AuthError("Email verification is not used in local auth mode.")
-
     email = (payload.email or "").strip().lower()
     code = (payload.code or "").strip()
     if not email or not code:
@@ -217,6 +246,17 @@ async def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db
         verify_verification_code(db, email, code)
     except VerificationError as e:
         raise AuthError(str(e)) from e
+
+    if local_auth_enabled():
+        if not confirm_local_email(db, email):
+            raise AuthError(
+                "We couldn't activate that account. Please try again, or contact support."
+            )
+        return {
+            "message": "Email verified. Sign in to continue.",
+            "email": email,
+            "verified": True,
+        }
 
     if not await admin_confirm_email(email):
         # The code was right but Supabase did not accept the confirmation, so
@@ -238,14 +278,15 @@ async def resend_verification(payload: dict, db: Session = Depends(get_db)) -> d
     email = (payload or {}).get("email", "").strip().lower()
     if not email:
         raise AuthError("email is required")
-    if local_auth_enabled():
-        raise AuthError("Email verification is not used in local auth mode.")
 
     # Same response either way, so this cannot be used to probe which emails
     # are registered.
     generic = {"message": "A new verification code is on its way if that account exists."}
 
-    if await admin_get_user_by_email(email) is None:
+    if local_auth_enabled():
+        if not local_user_exists(db, email):
+            return generic
+    elif await admin_get_user_by_email(email) is None:
         return generic
 
     wait = seconds_until_resend_allowed(db, email)
@@ -276,11 +317,6 @@ async def resend_verification(payload: dict, db: Session = Depends(get_db)) -> d
 @router.post("/forgot-password", response_model=MessageResponse)
 async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
     """Email a single-use reset link for the account (if it exists)."""
-    if local_auth_enabled():
-        return {
-            "message": "Local mode: password resets are managed by the administrator. "
-            "Delete backend/agrigpt_local.db and re-register to reset credentials."
-        }
     try:
         sent, dev_url = await issue_password_reset(db, payload.email)
     except Exception as e:
@@ -300,9 +336,6 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
 @router.post("/reset-password", response_model=MessageResponse)
 async def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
     """Consume a reset token and set the new password."""
-    if local_auth_enabled():
-        raise AuthError("Password reset is not used in local auth mode.")
-
     try:
         email = consume_reset_token(db, payload.token)
     except ResetError as e:

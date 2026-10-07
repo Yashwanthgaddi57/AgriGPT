@@ -24,12 +24,13 @@ def auth_client(client, sample_user):
 
 
 def test_plan_limit_blocks_free_crop_recommendation(auth_client, sample_user, db_session):
-    """Free plan: 6th crop recommendation this month -> 429 (server-side)."""
+    """Free plan: 6th crop recommendation ever -> 429 (per-account limit)."""
     from datetime import datetime, timedelta, timezone
 
     from app.models.recommendation import Recommendation
 
-    for _ in range(5):
+    # 4 recent + 1 from three months ago — per-account counting ignores age.
+    for i in range(5):
         db_session.add(
             Recommendation(
                 user_id=sample_user.id,
@@ -37,7 +38,7 @@ def test_plan_limit_blocks_free_crop_recommendation(auth_client, sample_user, db
                 season="kharif",
                 farm_size_acres=5,
                 crops=[],
-                created_at=datetime.now(timezone.utc) - timedelta(hours=1),
+                created_at=datetime.now(timezone.utc) - timedelta(hours=1, days=90 * i),
             )
         )
     db_session.flush()
@@ -58,7 +59,7 @@ def test_plan_limit_blocks_free_crop_recommendation(auth_client, sample_user, db
 
 
 def test_pro_plan_has_no_crop_limit(auth_client, sample_user, db_session):
-    """Pro plan bypasses the monthly quota (no AI call happens: 429 never raised)."""
+    """Pro plan bypasses the per-account quota (no AI call: 429 never raised)."""
     from datetime import datetime, timedelta, timezone
 
     from app.models.recommendation import Recommendation
@@ -279,7 +280,7 @@ def test_plan_limits_shape():
 # Chat quota counts farmer messages only
 # ---------------------------------------------------------------------------
 def test_chat_quota_counts_only_user_messages(auth_client, sample_user, db_session):
-    """20/day limit must count farmer turns, not assistant replies too."""
+    """20-message per-account limit must count farmer turns, not assistant replies."""
     from datetime import datetime, timedelta, timezone
 
     from app.core.plans_service import check_chat_quota
@@ -288,15 +289,18 @@ def test_chat_quota_counts_only_user_messages(auth_client, sample_user, db_sessi
     session = ChatSession(user_id=sample_user.id, title="t")
     db_session.add(session)
     db_session.flush()
+    # Messages deliberately spread across 'days' — per-account counting
+    # ignores when they were sent.
     hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
-    for _ in range(19):
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    for i in range(19):
         db_session.add(ChatMessage(session_id=session.id, user_id=sample_user.id,
-                                   role="user", content="hi", created_at=hour_ago))
+                                   role="user", content="hi", created_at=week_ago if i % 2 else hour_ago))
         db_session.add(ChatMessage(session_id=session.id, user_id=sample_user.id,
-                                   role="assistant", content="hello", created_at=hour_ago))
+                                   role="assistant", content="hello", created_at=week_ago if i % 2 else hour_ago))
     db_session.flush()
 
-    # 19 user messages -> under the 20 limit, must not raise
+    # 19 user messages (across days) -> under the 20 limit, must not raise
     check_chat_quota(db_session, sample_user)
 
     # 20th user message hits the limit
@@ -307,6 +311,31 @@ def test_chat_quota_counts_only_user_messages(auth_client, sample_user, db_sessi
 
     with pytest.raises(PlanLimitExceeded):
         check_chat_quota(db_session, sample_user)
+
+
+def test_old_usage_still_counts_against_per_account_quota(db_session, sample_user):
+    """Per-account semantics: rows created months ago still consume the allowance
+    (nothing refills — the free quota is one-time per account)."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.core.plans_service import PlanLimitExceeded, check_quota
+    from app.models.recommendation import Recommendation
+
+    for i in range(5):
+        db_session.add(
+            Recommendation(
+                user_id=sample_user.id,
+                location="Nashik",
+                season="kharif",
+                farm_size_acres=5,
+                crops=[],
+                created_at=datetime.now(timezone.utc) - timedelta(days=40 * (i + 1)),
+            )
+        )
+    db_session.flush()
+
+    with pytest.raises(PlanLimitExceeded):
+        check_quota(db_session, sample_user, "crop_recommendations")
 
 
 # ---------------------------------------------------------------------------

@@ -25,6 +25,14 @@ logger = logging.getLogger("app.auth.local")
 _PBKDF2_ITERATIONS = 120_000
 
 
+class EmailNotVerifiedError(Exception):
+    """Login blocked: the account's email code has not been confirmed yet."""
+
+    def __init__(self, email: str):
+        super().__init__(email)
+        self.email = email
+
+
 def local_auth_enabled() -> bool:
     """True when Supabase is not configured -> use local password auth."""
     return "YOUR_PROJECT_REF" in settings.SUPABASE_URL or not settings.SUPABASE_URL
@@ -145,8 +153,28 @@ def decode_local_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
 
 
+def is_email_verified(user: User) -> bool:
+    """Local-mode confirmation flag. Supabase mode reads auth.users instead."""
+    return bool(user.email_verified)
+
+
+def confirm_local_email(db: Session, email: str) -> bool:
+    """Mark a local account as verified. Returns False if no such user."""
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        return False
+    user.email_verified = True
+    db.commit()
+    return True
+
+
+def local_user_exists(db: Session, email: str) -> bool:
+    return db.query(User).filter(User.email == email).first() is not None
+
+
 def register_local_user(db: Session, data: dict[str, Any]) -> User:
-    """Create a local user immediately active (no email confirmation)."""
+    """Create a local user. Sign-in stays blocked until the emailed
+    6-digit code is confirmed (see routers.auth.verify_email)."""
     existing = db.query(User).filter(User.email == data["email"]).first()
     if existing:
         raise ValueError("A user with this email already exists")
@@ -161,7 +189,8 @@ def register_local_user(db: Session, data: dict[str, Any]) -> User:
         farm_size_acres=data.get("farm_size_acres") or 0,
         soil_type=data.get("soil_type") or "unknown",
         water_availability=data.get("water_availability") or "rainfed",
-        onboarding_completed=True,
+        email_verified=False,
+        onboarding_completed=False,
     )
     db.add(user)
     db.flush()
@@ -182,6 +211,10 @@ def authenticate_local_user(db: Session, email: str, password: str) -> User | No
     stored = _get_password_hash(user)
     if not stored or not verify_password(password, stored):
         return None
+    if not is_email_verified(user):
+        # Correct credentials, unconfirmed address: block the session so an
+        # unverified email can never sign in.
+        raise EmailNotVerifiedError(user.email)
     return user
 
 

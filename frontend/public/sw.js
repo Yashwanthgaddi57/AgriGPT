@@ -1,11 +1,13 @@
-/* AgriGPT service worker: offline shell + stale-while-revalidate for GETs.
-   Strategy:
+/* AgriGPT service worker: offline data + immutable-asset caching.
+   Strategy (v9):
    - Never cache POST/AI requests (always network).
-   - App shell + static assets: cache-first.
-   - Pages & API GETs: network-first with cache fallback (so data is fresh
-     when online, last-known when offline — critical for rural connectivity). */
-const CACHE = "agrigpt-v8"; // v8: stop caching un-hashed (dev) chunks; purge v7
-const SHELL = ["/dashboard", "/auth/login", "/manifest.json"];
+   - Never cache page HTML: a stale shell references dead hashed chunks from
+     an older build and hard-crashes the app on load (two prior incidents).
+     Pages are always fetched live; the browser handles offline errors.
+   - Static assets: cache-first, only when the filename carries a content hash.
+   - API GETs: network-first with cache fallback (offline data viewing). */
+const CACHE = "agrigpt-v9"; // v9: stop caching page HTML entirely; purge v8
+const SHELL = ["/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -63,24 +65,25 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first with offline fallback for pages + API GETs
-  event.respondWith(
-    fetch(req)
-      .then((res) => {
-        if (res.ok && (req.destination === "" || isApi || req.mode === "navigate")) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-        }
-        return res;
-      })
-      .catch(() =>
-        // Offline fallback: dashboard shell only. Never fall back for the
-        // landing page (excluded above) or auth pages.
-        caches.match(req).then((hit) => hit || (url.pathname.startsWith("/dashboard")
-          ? caches.match("/dashboard")
-          : Response.error()))
-      )
-  );
+  // Network-first with cache fallback for API GETs only. Page navigations are
+  // never intercepted: no cached HTML can ever be served, so a stale shell
+  // cannot boot old chunks against a new build.
+  if (isApi) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((hit) => hit || Response.error()))
+    );
+    return;
+  }
+
+  // Everything else (page navigations, unknown GETs): plain network.
 });
 
 /* Push notifications (wired to backend web-push when VAPID keys are set) */

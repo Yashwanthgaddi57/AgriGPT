@@ -12,26 +12,28 @@ FREE = "free"
 PRO = "pro"
 COOPERATIVE = "cooperative"
 
-# Monthly usage allowances. -1 = unlimited.
+# Per-account usage allowances (one-time per account, NOT monthly/daily):
+# a free account gets this total allowance for its lifetime; upgrading to Pro
+# unlocks unlimited. -1 = unlimited.
 PLAN_LIMITS: dict[str, dict[str, int]] = {
     FREE: {
         "crop_recommendations": 5,
         "disease_scans": 10,
-        "chat_messages_per_day": 20,
+        "chat_messages": 20,
         "market_analyses": 3,
         "profit_predictions": 5,
     },
     PRO: {
         "crop_recommendations": -1,
         "disease_scans": -1,
-        "chat_messages_per_day": -1,
+        "chat_messages": -1,
         "market_analyses": -1,
         "profit_predictions": -1,
     },
     COOPERATIVE: {
         "crop_recommendations": -1,
         "disease_scans": -1,
-        "chat_messages_per_day": -1,
+        "chat_messages": -1,
         "market_analyses": -1,
         "profit_predictions": -1,
     },
@@ -46,10 +48,10 @@ PLAN_META: dict[str, dict] = {
         "period": "forever",
         "description": "Core AI tools for smallholders.",
         "features": [
-            "5 crop plans / month",
-            "10 disease scans / month",
+            "5 crop plans (per account)",
+            "10 disease scans (per account)",
             "Weather intelligence",
-            "AI Copilot (20 messages/day)",
+            "AI Copilot (20 messages)",
             "Profit calculator",
         ],
     },

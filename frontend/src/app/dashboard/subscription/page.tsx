@@ -129,7 +129,7 @@ export default function SubscriptionPage() {
       <div>
         <h1 className="font-display text-[22px] font-medium leading-tight tracking-[0.32px]">Subscription</h1>
         <p className="text-sm text-muted-foreground">
-          Your current plan and monthly usage. Limits are enforced server-side.
+          Your current plan and usage. Limits are enforced server-side.
         </p>
       </div>
 
@@ -141,7 +141,7 @@ export default function SubscriptionPage() {
               <Crown className="h-4 w-4 text-leaf-600" />
               {sub.meta.name} {sub.plan === "free" && <Badge variant="secondary">current</Badge>}
             </CardTitle>
-            <CardDescription>Usage this month</CardDescription>
+            <CardDescription>Usage on your account</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(sub.usage).map(([feature, u]) => {
@@ -151,7 +151,7 @@ export default function SubscriptionPage() {
                 <div key={feature} className="rounded-lg border p-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="capitalize text-muted-foreground">
-                      {feature.replace(/_/g, " ")}
+                      {feature.replace(/_/g, " ").replace(/messages$/, "copilot messages")}
                     </span>
                     <span className="font-medium">
                       {u.used} / {unlimited ? "∞" : u.limit}

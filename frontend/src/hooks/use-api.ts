@@ -92,14 +92,97 @@ export function useSaveLocation() {
       state?: string | null;
     }) => (await api.post("/geo/location", payload)).data,
     onSuccess: () => {
+      // Everything location-driven must refresh the moment the farmer saves a
+      // new spot — weather, today plan, prices, vendors, mandis, farm state.
       qc.invalidateQueries({ queryKey: ["geo"] });
       qc.invalidateQueries({ queryKey: ["profile"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["weather"] });
       qc.invalidateQueries({ queryKey: ["market"] });
       qc.invalidateQueries({ queryKey: ["vendors"] });
+      qc.invalidateQueries({ queryKey: ["farm"] }); // today's plan (dashboard home)
+      qc.invalidateQueries({ queryKey: ["geo", "mandis"] });
     },
   });
+}
+
+// ---------------- Nearby Agri Services (map feature) ----------------
+export interface AgriServiceItem {
+  id: string;
+  name: string;
+  category: string;
+  subcategory: string | null;
+  description: string | null;
+  latitude: number;
+  longitude: number;
+  address: string | null;
+  village: string | null;
+  city: string | null;
+  district: string | null;
+  state: string | null;
+  pincode: string | null;
+  phone: string | null;
+  website: string | null;
+  rating: number | null;
+  review_count: number | null;
+  opening_hours: string | null;
+  distance_km: number;
+  crops: string[];
+  matches_crop: boolean;
+  beyond_radius: boolean;
+  /** Human-readable source, e.g. "OpenStreetMap". */
+  source: string;
+  /** Raw source key, e.g. "osm" | "directory". */
+  source_kind: string;
+  last_updated: string | null;
+}
+
+export interface AgriNearbyResponse {
+  results: AgriServiceItem[];
+  location: FarmerLocation;
+  radius_km: number;
+  total: number;
+  categories: string[];
+  note: string | null;
+}
+
+export type AgriSort = "nearest" | "rating" | "name";
+
+export function useAgriNearby(params: {
+  lat?: number | null;
+  lng?: number | null;
+  radius_km?: number;
+  categories?: string[];
+  search?: string;
+  crop?: string;
+  sort?: AgriSort;
+}) {
+  return useQuery<AgriNearbyResponse>({
+    queryKey: ["agri", "nearby", params],
+    queryFn: async () =>
+      (
+        await api.get("/agri/nearby", {
+          params: {
+            ...(params.lat != null ? { lat: params.lat } : {}),
+            ...(params.lng != null ? { lng: params.lng } : {}),
+            radius: params.radius_km ?? 25,
+            ...(params.categories?.length ? { category: params.categories.join(",") } : {}),
+            ...(params.search ? { search: params.search } : {}),
+            ...(params.crop ? { crop: params.crop } : {}),
+            sort: params.sort ?? "nearest",
+          },
+        })
+      ).data,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/** Place-name lookup used by the map's search box. */
+export function searchPlace(q: string) {
+  return api
+    .get("/geo/search", { params: { q } })
+    .then((r) => r.data as { name?: string; latitude?: number; longitude?: number; admin1?: string });
 }
 
 export function useNearbyVendors(params: { category?: string; crop?: string; radius_km?: number }) {

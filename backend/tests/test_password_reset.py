@@ -20,9 +20,17 @@ def clean_tokens(db_session):
     db_session.commit()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def supabase_mode(monkeypatch):
+    """Force the Supabase path everywhere these tests look.
+
+    issue_password_reset/apply_password_change consult local_auth_enabled in
+    the password_reset module, while the router endpoints consult the name on
+    the router — patch both so the local-mode shortcut cannot bypass the
+    admin-API mocks below.
+    """
     monkeypatch.setattr(auth_router, "local_auth_enabled", lambda: False)
+    monkeypatch.setattr(pr, "local_auth_enabled", lambda: False)
 
 
 def test_token_is_stored_hashed_and_single_use(db_session, monkeypatch):

@@ -26,6 +26,7 @@ from app.ai.prompts import (
     COORDINATOR_SYSTEM,
     CROP_RECOMMENDATION_SYSTEM,
     MARKET_FORECAST_SYSTEM,
+    NEARBY_SERVICES_SYSTEM,
     PROFIT_OPTIMIZATION_SYSTEM,
     WEATHER_AGENT_SYSTEM,
 )
@@ -39,6 +40,7 @@ INTENT_TO_AGENT = {
     "weather": "weather",
     "market": "market",
     "profit_optimization": "profit",
+    "nearby_services": "nearby",
     "general_advice": "advisor",
 }
 
@@ -236,6 +238,98 @@ def profit_node(state: AgentState) -> dict:
     return {"specialist_outputs": {"profit_optimization": answer}}
 
 
+async def _nearby_results_text(user_id: str, entities: dict, query: str) -> str:
+    """Real nearby-service results for the assistant — never hallucinated.
+
+    Returns a compact block the model must quote from: name, category, true
+    distance, address and only those contact fields the data actually has.
+    """
+    from app.core.database import get_session_factory
+    from app.models.user import User
+    from app.services.agri_services import (
+        CATEGORY_LABELS,
+        categories_from_search,
+        nearby_agri_services,
+    )
+    from app.services.location_service import resolve_location
+
+    db = get_session_factory()()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            return "NO PROFILE: cannot resolve the farmer's location."
+        loc = resolve_location(db, user)
+
+        cats = categories_from_search(query)
+        if not cats and entities.get("category"):
+            cats = categories_from_search(str(entities["category"]))
+
+        radius_km = 25
+        results = await nearby_agri_services(
+            db,
+            loc.latitude,
+            loc.longitude,
+            radius_km=radius_km,
+            categories=cats,
+            search=entities.get("search") or None,
+            limit=8,
+        )
+        if not results:
+            return (
+                f"NO RESULTS within {radius_km} km of {loc.label}. "
+                "Tell the farmer nothing was found and suggest a larger radius or a nearby town."
+            )
+
+        lines = [f"SEARCHED AROUND: {loc.label} ({radius_km} km radius). REAL RESULTS:"]
+        for i, r in enumerate(results, 1):
+            parts = [
+                f"{i}. {r['name']} [{CATEGORY_LABELS.get(r['category'], r['category'])}]",
+                f"{r['distance_km']} km away",
+            ]
+            address = ", ".join(
+                filter(None, [r.get("address"), r.get("city"), r.get("district"), r.get("state")])
+            )
+            if address:
+                parts.append(address)
+            if r.get("phone"):
+                parts.append(f"phone {r['phone']}")
+            if r.get("website"):
+                parts.append(f"website {r['website']}")
+            if r.get("opening_hours"):
+                parts.append(f"open {r['opening_hours']}")
+            parts.append(f"source {r.get('source')}")
+            lines.append(" | ".join(parts))
+        return "\n".join(lines)
+    except Exception as e:  # fail-soft: never break chat on a map lookup
+        logger.warning("Nearby services lookup failed: %s", e)
+        return "LOOKUP FAILED: tell the farmer the nearby-services map is temporarily unavailable."
+    finally:
+        db.close()
+
+
+async def nearby_node(state: AgentState) -> dict:
+    """Answer nearby-shop questions from the real directory + OSM data."""
+    claude = get_claude()
+    user_text = _last_user_text(state)
+    data = await _nearby_results_text(
+        state.get("user_id", ""), state.get("entities") or {}, user_text
+    )
+    answer = claude.complete(
+        system=NEARBY_SERVICES_SYSTEM + CHAT_RESPONSE_RULES,
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    f"FARMER CONTEXT:\n{state.get('farmer_context', 'none')}\n\n"
+                    f"{data}\n\nFARMER QUESTION: {user_text}"
+                ),
+            }
+        ],
+        max_tokens=900,
+    )
+    return {"specialist_outputs": {"nearby_services": answer}}
+
+
 def advisor_node(state: AgentState) -> dict:
     claude = get_claude()
     answer = claude.complete(
@@ -316,6 +410,7 @@ def build_graph():
     g.add_node("weather", weather_node)
     g.add_node("market", market_node)
     g.add_node("profit", profit_node)
+    g.add_node("nearby", nearby_node)
     g.add_node("advisor", advisor_node)
     g.add_node("merge", merge_node)
 
@@ -329,11 +424,12 @@ def build_graph():
             "weather": "weather",
             "market": "market",
             "profit": "profit",
+            "nearby": "nearby",
             "advisor": "advisor",
             "done": END,
         },
     )
-    for specialist in ("crop", "disease", "weather", "market", "profit", "advisor"):
+    for specialist in ("crop", "disease", "weather", "market", "profit", "nearby", "advisor"):
         g.add_edge(specialist, "merge")
     g.add_edge("merge", END)
     return g.compile()
@@ -388,6 +484,9 @@ def specialist_system_for(intent: str) -> str:
         + "\nYou are in CHAT mode: the JSON schema above is for internal reference only. "
           "If cost details are missing, state assumptions briefly, then present the projection "
           "as prose/tables — never as JSON.",
+        # Accept both the raw intent and the mapped agent name.
+        "nearby_services": NEARBY_SERVICES_SYSTEM + CHAT_RESPONSE_RULES,
+        "nearby": NEARBY_SERVICES_SYSTEM + CHAT_RESPONSE_RULES,
         "general_advice": ADVISOR_SYSTEM + CHAT_RESPONSE_RULES,
     }
     return system_map.get(intent, ADVISOR_SYSTEM + CHAT_RESPONSE_RULES)
@@ -410,6 +509,24 @@ async def stream_specialist_turn(
     claude = get_claude()
     system = specialist_system_for(intent)
 
+    if intent in ("nearby_services", "nearby"):
+        data = await _nearby_results_text(user_id, entities or {}, user_message)
+        messages = [
+            {
+                "role": "user",
+                "content": (
+                    f"FARMER CONTEXT:\n{farmer_context}\n\n{data}\n\n"
+                    f"FARMER QUESTION: {user_message}"
+                ),
+            }
+        ]
+        async for delta in claude.astream(
+            system=NEARBY_SERVICES_SYSTEM + CHAT_RESPONSE_RULES,
+            messages=messages,
+            max_tokens=900,
+        ):
+            yield delta
+        return
     if intent == "weather":
         location = (entities or {}).get("location") or ""
         summary = await get_weather_summary_for_agent(user_id, location)

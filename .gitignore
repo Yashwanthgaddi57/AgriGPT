@@ -36,6 +36,7 @@ redisdata/
 *.sqlite3-shm
 backend/.local_jwt_secret
 backend/.local_set_password.txt
+backend/.e2e_token_uid
 
 # Misc
 .DS_Store

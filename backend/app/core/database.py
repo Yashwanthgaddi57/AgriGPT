@@ -234,6 +234,23 @@ def _auto_migrate_sqlite(engine, logger) -> None:
                     f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {col_type}{default}'
                 )
                 logger.info("Auto-migrated: added %s.%s", table_name, col.name)
+
+        # Indexes declared on the models (lat/lon/category lookups for the
+        # nearby-services map). `IF NOT EXISTS` keeps this idempotent.
+        for table_name, table in Base.metadata.tables.items():
+            if not inspector.has_table(table_name):
+                continue
+            existing_indexes = {ix["name"] for ix in inspector.get_indexes(table_name)}
+            for index in table.indexes:
+                if not index.name or index.name in existing_indexes:
+                    continue
+                cols = ", ".join(f'"{c.name}"' for c in index.columns)
+                unique = "UNIQUE " if index.unique else ""
+                conn.exec_driver_sql(
+                    f'CREATE {unique}INDEX IF NOT EXISTS "{index.name}" '
+                    f'ON "{table_name}" ({cols})'
+                )
+                logger.info("Auto-migrated: created index %s on %s", index.name, table_name)
         conn.commit()
 
 

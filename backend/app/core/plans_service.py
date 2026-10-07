@@ -1,12 +1,13 @@
 """Server-side plan-limit enforcement.
 
-Reads the user's plan from the DB row and enforces monthly (or daily, for
-chat) usage quotas on expensive endpoints. The frontend may hide buttons,
-but limits are enforced HERE so direct API calls cannot bypass them.
+Reads the user's plan from the DB row and enforces **per-account** usage
+quotas on expensive endpoints: each free account gets a fixed one-time
+allowance of AI calls (a rolling window is NOT used — counters count every
+row the account has ever created). The frontend may hide buttons, but limits
+are enforced HERE so direct API calls cannot bypass them.
 """
 import logging
 import uuid
-from datetime import date, datetime, timezone
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -32,29 +33,27 @@ def user_plan(user: User) -> str:
     return plan if plan in PLAN_LIMITS else FREE
 
 
-def _count_this_month(db: Session, model, user_id: str) -> int:
+def _count_lifetime(db: Session, model, user_id: str) -> int:
+    """Total rows the account has ever created — the per-account quota basis.
+
+    No date filter on purpose: the allowance is one-time per account, not a
+    monthly/daily window, so nothing ever 'refills'.
+    """
     uid = uuid.UUID(str(user_id))
-    now = datetime.now(timezone.utc)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return db.query(func.count(model.id)).filter(model.user_id == uid).scalar() or 0
+
+
+def _count_lifetime_chat(db: Session, user_id: str) -> int:
+    """Per-account copilot usage: FARMER messages only (role == 'user')."""
+    from app.models.chat import ChatMessage
+
+    uid = uuid.UUID(str(user_id))
     return (
-        db.query(func.count(model.id))
-        .filter(model.user_id == uid, model.created_at >= month_start)
+        db.query(func.count(ChatMessage.id))
+        .filter(ChatMessage.user_id == uid, ChatMessage.role == "user")
         .scalar()
         or 0
     )
-
-
-def _count_today(db: Session, model, user_id: str) -> int:
-    uid = uuid.UUID(str(user_id))
-    today_start = datetime.combine(date.today(), datetime.min.time(), tzinfo=timezone.utc)
-    q = db.query(func.count(model.id)).filter(
-        model.user_id == uid, model.created_at >= today_start
-    )
-    # Chat quota counts FARMER messages only (role == 'user'), not the
-    # assistant's replies — otherwise "20 messages/day" would really be 10 turns.
-    if hasattr(model, "role"):
-        q = q.filter(model.role == "user")
-    return q.scalar() or 0
 
 
 _USAGE_MODEL = {
@@ -66,9 +65,9 @@ _USAGE_MODEL = {
 
 
 def check_quota(db: Session, user: User, feature: str) -> None:
-    """Raise PlanLimitExceeded (HTTP 429) when the monthly quota is exhausted.
+    """Raise PlanLimitExceeded (HTTP 429) when the per-account quota is used up.
 
-    Raises nothing for unlimited plans. Chat uses check_chat_quota (daily).
+    Raises nothing for unlimited plans.
     """
     plan = user_plan(user)
     if is_unlimited(plan, feature):
@@ -79,28 +78,26 @@ def check_quota(db: Session, user: User, feature: str) -> None:
     model = _USAGE_MODEL.get(feature)
     if model is None:
         return
-    used = _count_this_month(db, model, str(user.id))
+    used = _count_lifetime(db, model, str(user.id))
     if used >= limit:
         raise PlanLimitExceeded(
-            f"You've reached the {plan} plan limit of {limit} this month. "
+            f"You've used all {limit} included on the {plan} plan. "
             "Upgrade to Pro for unlimited usage."
         )
 
 
 def check_chat_quota(db: Session, user: User) -> None:
-    """Daily quota on farmer-sent messages (free capped, pro unlimited)."""
-    from app.models.chat import ChatMessage
-
+    """Per-account copilot allowance (free capped, pro unlimited)."""
     plan = user_plan(user)
-    if is_unlimited(plan, "chat_messages_per_day"):
+    if is_unlimited(plan, "chat_messages"):
         return
-    limit = plan_limits(plan).get("chat_messages_per_day")
+    limit = plan_limits(plan).get("chat_messages")
     if not limit:
         return
-    used = _count_today(db, ChatMessage, str(user.id))
+    used = _count_lifetime_chat(db, str(user.id))
     if used >= limit:
         raise PlanLimitExceeded(
-            f"You've reached the {plan} plan limit of {limit} copilot messages per day. "
+            f"You've used all {limit} copilot messages included on the {plan} plan. "
             "Upgrade to Pro for unlimited chats."
         )
 
@@ -112,7 +109,13 @@ def usage_summary(db: Session, user: User) -> dict:
     for feature, model in _USAGE_MODEL.items():
         limit = plan_limits(plan).get(feature)
         out[feature] = {
-            "used": _count_this_month(db, model, str(user.id)),
+            "used": _count_lifetime(db, model, str(user.id)),
             "limit": limit,  # -1 = unlimited
         }
+    # Chat counts farmer messages only, same basis as the enforcement check.
+    chat_limit = plan_limits(plan).get("chat_messages")
+    out["chat_messages"] = {
+        "used": _count_lifetime_chat(db, str(user.id)),
+        "limit": chat_limit,
+    }
     return out

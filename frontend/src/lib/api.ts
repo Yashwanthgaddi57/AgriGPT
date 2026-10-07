@@ -107,13 +107,14 @@ api.interceptors.response.use(
 );
 
 export function apiErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
+  // Prefer the backend's user-facing detail (e.g. "Invalid email or password")
+  // over AxiosError's generic "Request failed with status code 401".
   if (axios.isAxiosError(error)) {
     const detail = error.response?.data;
     if (detail?.error?.detail) return detail.error.detail;
     if (detail?.detail) return typeof detail.detail === "string" ? detail.detail : JSON.stringify(detail.detail);
     if (typeof detail === "string") return detail;
-    if (error.message) return error.message;
   }
+  if (error instanceof Error && error.message) return error.message;
   return "Something went wrong. Please try again.";
 }
