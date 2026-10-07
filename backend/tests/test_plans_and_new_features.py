@@ -16,11 +16,11 @@ from tests.factories import make_disease_report, make_user
 @pytest.fixture
 def auth_client(client, sample_user):
     from app.core.deps import get_current_user
-    from app.main import app
+    from app.main import fastapi_app
 
-    app.dependency_overrides[get_current_user] = lambda: sample_user
+    fastapi_app.dependency_overrides[get_current_user] = lambda: sample_user
     yield client
-    app.dependency_overrides.pop(get_current_user, None)
+    fastapi_app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_plan_limit_blocks_free_crop_recommendation(auth_client, sample_user, db_session):
@@ -174,9 +174,9 @@ def test_disease_followup_cannot_touch_other_users_report(client, sample_user, d
     db_session.flush()
 
     from app.core.deps import get_current_user
-    from app.main import app
+    from app.main import fastapi_app
 
-    app.dependency_overrides[get_current_user] = lambda: sample_user
+    fastapi_app.dependency_overrides[get_current_user] = lambda: sample_user
     try:
         resp = client.patch(
             f"/api/v1/disease/reports/{report.id}",
@@ -186,7 +186,7 @@ def test_disease_followup_cannot_touch_other_users_report(client, sample_user, d
         resp2 = client.get(f"/api/v1/disease/reports/{report.id}")
         assert resp2.status_code == 404
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        fastapi_app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_disease_report_includes_alternatives(auth_client, sample_user, db_session):

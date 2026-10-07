@@ -34,11 +34,11 @@ def _isolated_market_cache():
 @pytest.fixture
 def auth_client(client, sample_user):
     from app.core.deps import get_current_user
-    from app.main import app
+    from app.main import fastapi_app
 
-    app.dependency_overrides[get_current_user] = lambda: sample_user
+    fastapi_app.dependency_overrides[get_current_user] = lambda: sample_user
     yield client
-    app.dependency_overrides.pop(get_current_user, None)
+    fastapi_app.dependency_overrides.pop(get_current_user, None)
 
 
 # ---------------------------------------------------------------------------
@@ -86,14 +86,14 @@ def test_expense_isolation_user_a_cannot_delete_user_b(client, sample_user, db_s
     db_session.flush()
 
     from app.core.deps import get_current_user
-    from app.main import app
+    from app.main import fastapi_app
 
-    app.dependency_overrides[get_current_user] = lambda: sample_user
+    fastapi_app.dependency_overrides[get_current_user] = lambda: sample_user
     try:
         resp = client.delete(f"/api/v1/farm/expenses/{e.id}")
         assert resp.status_code == 404
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        fastapi_app.dependency_overrides.pop(get_current_user, None)
 
 
 # ---------------------------------------------------------------------------

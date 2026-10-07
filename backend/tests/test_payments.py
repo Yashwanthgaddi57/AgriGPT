@@ -18,11 +18,11 @@ SECRET = "test-razorpay-secret"
 @pytest.fixture
 def auth_client(client, sample_user):
     from app.core.deps import get_current_user
-    from app.main import app
+    from app.main import fastapi_app
 
-    app.dependency_overrides[get_current_user] = lambda: sample_user
+    fastapi_app.dependency_overrides[get_current_user] = lambda: sample_user
     yield client
-    app.dependency_overrides.pop(get_current_user, None)
+    fastapi_app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture
@@ -168,7 +168,7 @@ def test_verify_cannot_use_other_users_order(client, sample_user, db_session, ra
     """IDOR check: an order created by user B cannot be verified by user A."""
     from app.core import razorpay_client
     from app.core.deps import get_current_user
-    from app.main import app
+    from app.main import fastapi_app
 
     other = make_user(db_session, email="payer-b@example.com")
     db_session.add(
@@ -181,7 +181,7 @@ def test_verify_cannot_use_other_users_order(client, sample_user, db_session, ra
     )
     db_session.flush()
 
-    app.dependency_overrides[get_current_user] = lambda: sample_user
+    fastapi_app.dependency_overrides[get_current_user] = lambda: sample_user
     try:
         async def fake_fetch(payment_id):
             return {"status": "captured"}
@@ -197,7 +197,7 @@ def test_verify_cannot_use_other_users_order(client, sample_user, db_session, ra
         )
         assert resp.status_code == 404
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        fastapi_app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_webhook_bad_signature_rejected(client):

@@ -109,16 +109,21 @@ async def _send_brevo(to: str, subject: str, html: str) -> bool:
         return False
     name, _, addr = _from_header().partition("<")
     addr = addr.rstrip(">").strip() or name
-    resp = await httpx.AsyncClient(timeout=20).post(
-        BREVO_ENDPOINT,
-        headers={"api-key": key, "Content-Type": "application/json"},
-        json={
-            "sender": {"name": name.strip() or "AgriGPT", "email": addr},
-            "to": [{"email": to}],
-            "subject": subject,
-            "htmlContent": html,
-        },
-    )
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                BREVO_ENDPOINT,
+                headers={"api-key": key, "Content-Type": "application/json"},
+                json={
+                    "sender": {"name": name.strip() or "AgriGPT", "email": addr},
+                    "to": [{"email": to}],
+                    "subject": subject,
+                    "htmlContent": html,
+                },
+            )
+    except httpx.HTTPError as exc:
+        logger.warning("Brevo request failed: %s", type(exc).__name__)
+        return False
     if resp.status_code >= 400:
         logger.warning("Brevo rejected mail to %s: HTTP %s %s", to, resp.status_code, resp.text[:300])
         return False
@@ -129,11 +134,16 @@ async def _send_resend(to: str, subject: str, html: str) -> bool:
     key = (settings.RESEND_API_KEY or "").strip()
     if not key:
         return False
-    resp = await httpx.AsyncClient(timeout=20).post(
-        RESEND_ENDPOINT,
-        headers={"Authorization": f"Bearer {key}"},
-        json={"from": _from_header(), "to": [to], "subject": subject, "html": html},
-    )
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                RESEND_ENDPOINT,
+                headers={"Authorization": f"Bearer {key}"},
+                json={"from": _from_header(), "to": [to], "subject": subject, "html": html},
+            )
+    except httpx.HTTPError as exc:
+        logger.warning("Resend request failed: %s", type(exc).__name__)
+        return False
     if resp.status_code >= 400:
         logger.warning("Resend rejected mail to %s: HTTP %s %s", to, resp.status_code, resp.text[:300])
         return False

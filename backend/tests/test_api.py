@@ -8,11 +8,11 @@ import pytest
 def auth_client(client, sample_user):
     """Client with get_current_user overridden to return the sample user."""
     from app.core.deps import get_current_user
-    from app.main import app
+    from app.main import fastapi_app
 
-    app.dependency_overrides[get_current_user] = lambda: sample_user
+    fastapi_app.dependency_overrides[get_current_user] = lambda: sample_user
     yield client
-    app.dependency_overrides.pop(get_current_user, None)
+    fastapi_app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_health(client):

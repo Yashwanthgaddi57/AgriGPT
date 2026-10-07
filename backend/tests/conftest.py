@@ -30,7 +30,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
-from app.main import app
+from app.main import app, fastapi_app
 
 
 @pytest.fixture(scope="session")
@@ -62,10 +62,10 @@ def client(engine, db_session):
         finally:
             pass
 
-    app.dependency_overrides[get_db] = override_get_db
+    fastapi_app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
-    app.dependency_overrides.clear()
+    fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture

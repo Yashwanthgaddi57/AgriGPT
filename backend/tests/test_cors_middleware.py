@@ -30,3 +30,30 @@ def test_cors_preflight_bypasses_rate_limiter(client, monkeypatch):
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_unhandled_error_response_includes_cors_headers():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from starlette.middleware.cors import CORSMiddleware
+
+    api = FastAPI()
+
+    @api.get("/failure")
+    async def failure():
+        raise RuntimeError("simulated failure")
+
+    application = CORSMiddleware(
+        api,
+        allow_origins=["http://localhost:3000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    with TestClient(application, raise_server_exceptions=False) as test_client:
+        response = test_client.get(
+            "/failure", headers={"Origin": "http://localhost:3000"}
+        )
+
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
