@@ -57,7 +57,12 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
-# CORS
+# Custom middleware
+for mw in get_middlewares():
+    app.add_middleware(mw)
+
+# Keep CORS outside custom middleware so even rate-limit responses include
+# the headers browsers need to expose the response to the frontend.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -65,10 +70,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Custom middleware
-for mw in get_middlewares():
-    app.add_middleware(mw)
 
 register_exception_handlers(app)
 
