@@ -157,7 +157,7 @@ See [.env.example](.env.example). Key values:
 
 ## Deployment
 
-The repo ships container-ready Docker images for both halves (see `Dockerfile` and `backend/Dockerfile`), plus `docker-compose.yml` for a full local stack. Deploy the two services on any platform that runs containers (Fly.io, Railway, ECS, Cloud Run, a VPS, ...) and wire them together with environment variables — no platform-specific config files are committed.
+The repo ships container-ready Docker images for both halves (see `Dockerfile` and `backend/Dockerfile`), plus `docker-compose.yml` for a full local stack. Deploy the two services on any platform that runs containers (Fly.io, ECS, Cloud Run, a VPS, ...) and wire them together with environment variables — no platform-specific config files are committed.
 
 ### 1 · Create the database schema on Supabase (one time)
 1. Supabase → SQL Editor → run `supabase/schema.sql`, then `supabase/policies.sql` (or `alembic upgrade head`).
