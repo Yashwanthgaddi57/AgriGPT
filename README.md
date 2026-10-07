@@ -157,7 +157,15 @@ See [.env.example](.env.example). Key values:
 
 ## Deployment
 
-The repo ships container-ready Docker images for both halves (see `Dockerfile` and `backend/Dockerfile`), plus `docker-compose.yml` for a full local stack. Deploy the two services on any platform that runs containers (Fly.io, ECS, Cloud Run, a VPS, ...) and wire them together with environment variables — no platform-specific config files are committed.
+The repo ships container-ready Docker images for both halves (see `Dockerfile` and `backend/Dockerfile`), plus `docker-compose.yml` for a full local stack. A `render.yaml` is included for Render deployments; otherwise, deploy the two services on any platform that runs containers (Fly.io, ECS, Cloud Run, a VPS, ...) and wire them together with environment variables.
+
+### Deploying with Render
+1. Create a Supabase project and apply `supabase/schema.sql` and `supabase/policies.sql` as described above.
+2. In Render, create a Blueprint from this repository and select `render.yaml`.
+3. Enter the prompted Supabase URL, anon/service-role keys, JWT secret, and database connection URL. Use a SQLAlchemy URL with the psycopg driver, such as `postgresql+psycopg://...`. Enter an Anthropic API key and configure one email provider (Brevo or Resend) with a verified sender address.
+4. After the services deploy, verify the frontend and `https://agrigpt-api.onrender.com/health`. If you use custom Render domains, update `FRONTEND_APP_URL`, `BACKEND_CORS_ORIGINS`, `NEXT_PUBLIC_APP_URL`, and `NEXT_PUBLIC_API_URL` to match.
+
+The frontend's public environment variables are passed to its Docker build so Next.js can include them in the deployed bundle. The free Render web-service plan may spin down inactive services.
 
 ### 1 · Create the database schema on Supabase (one time)
 1. Supabase → SQL Editor → run `supabase/schema.sql`, then `supabase/policies.sql` (or `alembic upgrade head`).
