@@ -62,4 +62,4 @@ services:
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
       - key: NEXT_PUBLIC_API_URL
-        value: https://agrigpt-api.onrender.com
+        value: https://agrigpt-api-ri76.onrender.com
