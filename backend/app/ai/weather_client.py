@@ -8,13 +8,19 @@ from app.core.exceptions import ExternalServiceError
 OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
 GEOCODE = "https://geocoding-api.open-meteo.com/v1/search"
 
+# Generous: on Render free tier the instance CPU is throttled after idle, and
+# the first outbound TLS + JSON round-trip can take well over 6s. A premature
+# timeout here surfaced as a 502 to the farmer (the OpenWeatherMap fallback is
+# usually unconfigured). 15s still bounds worst-case request latency.
+WEATHER_TIMEOUT_S = 15
+
 # WMO weather interpretation codes -> human labels
 WMO = {
     0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
     45: "Fog", 48: "Depositing rime fog", 51: "Light drizzle", 53: "Moderate drizzle",
     55: "Dense drizzle", 56: "Light freezing drizzle", 57: "Dense freezing drizzle",
     61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain", 66: "Light freezing rain",
-    67: "Heavy freezing rain", 71: "Slight snow", 73: "Moderate snow", 75: "Heavy snow",
+    67: "Heavy freezing drizzle", 71: "Slight snow", 73: "Moderate snow", 75: "Heavy snow",
     77: "Snow grains", 80: "Rain showers", 81: "Moderate showers", 82: "Violent showers",
     85: "Slight snow showers", 86: "Heavy snow showers", 95: "Thunderstorm",
     96: "Thunderstorm with hail", 99: "Severe thunderstorm with hail",
@@ -23,7 +29,7 @@ WMO = {
 
 async def geocode(location: str) -> dict[str, Any]:
     """Resolve a place name to lat/lon. Defaults to Nashik, MH if not found."""
-    async with httpx.AsyncClient(timeout=6) as client:
+    async with httpx.AsyncClient(timeout=WEATHER_TIMEOUT_S) as client:
         resp = await client.get(GEOCODE, params={"name": location, "count": 1, "language": "en", "format": "json"})
         resp.raise_for_status()
         results = resp.json().get("results") or []
@@ -35,7 +41,7 @@ async def geocode(location: str) -> dict[str, Any]:
 
 async def get_forecast(lat: float, lon: float, days: int = 7) -> dict[str, Any]:
     """Fetch daily forecast: temperature, humidity, wind, precipitation."""
-    async with httpx.AsyncClient(timeout=6) as client:
+    async with httpx.AsyncClient(timeout=WEATHER_TIMEOUT_S) as client:
         resp = await client.get(
             OPEN_METEO,
             params={
