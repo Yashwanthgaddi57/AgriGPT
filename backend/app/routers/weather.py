@@ -14,23 +14,12 @@ logger = logging.getLogger("app.api.weather")
 router = APIRouter(prefix="/weather", tags=["weather"])
 
 
-# Neutral forecast shown when every weather provider failed. The farmer still
-# gets a usable screen instead of a 502 — the dashboard is dominated by this
-# endpoint, so one flaky upstream must not break the whole page.
-_DEGRADED_DAYS = [
-    {
-        "date": "",
-        "temp_c": None,
-        "temp_max_c": None,
-        "temp_min_c": None,
-        "feels_like_c": None,
-        "humidity": None,
-        "wind_kph": None,
-        "precip_mm": None,
-        "precip_probability": None,
-        "condition": "Data unavailable",
-    }
-]
+# When every weather provider fails the farmer still gets a usable 200 instead
+# of a 502 — the dashboard is dominated by this endpoint, so one flaky upstream
+# must not break the whole page. We return an EMPTY days list (not a single
+# all-null day) plus a clear message, so the weather card can render "no data"
+# cleanly rather than pretending one day exists with every field null.
+_DEGRADED_DAYS: list[dict] = []
 
 
 @router.get("")
@@ -38,8 +27,9 @@ async def weather(location: str | None = None, user: CurrentUser = None, db: DBS
     """Exact farmer coordinates when available; otherwise geocoded/typed location.
 
     Fails soft: when both providers are unreachable the answer is a degraded
-    200 (condition 'Data unavailable') rather than a 502, so the dashboard
-    still renders and the next request retries the providers.
+    200 with an empty forecast and a clear message rather than a 502, so the
+    dashboard still renders and the next request retries the providers.
+    When the forecast resolves (even partially) the real data is returned.
     """
     loc = await resolve_location_async(db, user)
     coords = None
@@ -50,14 +40,16 @@ async def weather(location: str | None = None, user: CurrentUser = None, db: DBS
             str(user.id), location or loc.label or loc.district or "Nashik", coordinates=coords
         )
     except ExternalServiceError as e:
-        # Nothing is cached on failure, so the next request retries providers.
+        # Do NOT cache a broken result — the next request retries providers.
         logger.warning("Weather providers unavailable for user %s: %s", user.id, e)
         result = {
             "location": location or loc.label or loc.district or "your location",
             "days": _DEGRADED_DAYS,
             "ai_recommendation": None,
             "action": "none",
-            "alerts": ["Weather service is temporarily unavailable — showing limited data. Try refreshing in a minute."],
+            "alerts": [
+                "Weather data is temporarily unavailable. Showing limited data — refresh in a minute to retry.",
+            ],
             "source": "unavailable",
         }
     if location:

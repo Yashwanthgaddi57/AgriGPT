@@ -67,14 +67,25 @@ async def fetch_weather_days(
         place_name = geo["name"]
 
     # Forecast with provider failover: Open-Meteo -> OpenWeatherMap.
+    days_out: list[dict] = []
+    last_error: str = ""
     try:
         raw = await get_forecast(lat, lon, days)
         days_out = parse_forecast(raw)
     except Exception as e:
         logger.warning("Open-Meteo forecast failed (%s); trying OpenWeatherMap", e)
-        days_out = await openweather_client.get_forecast(lat, lon, days)
+        last_error = str(e)
+        try:
+            days_out = await openweather_client.get_forecast(lat, lon, days)
+        except Exception as owm_err:
+            logger.warning("OpenWeatherMap forecast also failed for %s,%s: %s", lat, lon, owm_err)
+            days_out = []
+            last_error = f"Open-Meteo: {last_error}; OpenWeatherMap: {owm_err}"
 
     result = {"location": place_name, "days": days_out}
+    # Cache the result (even an empty one) so repeated rapid requests don't
+    # hammer providers during an outage; the 30-min TTL means the next request
+    # will naturally retry after refresh.
     cache_set(cache_key, result, ttl_seconds=1800)
     return place_name, days_out
 

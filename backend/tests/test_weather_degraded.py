@@ -3,6 +3,10 @@
 Production hit this on Render free tier: the Open-Meteo request blew its 6s
 httpx timeout under CPU throttling, the unconfigured OpenWeatherMap fallback
 raised ExternalServiceError, and the farmer's dashboard went down with it.
+
+Improved degradation (2026-10): when providers fail we return an empty days
+list (not a single all-null "Data unavailable" day) plus a clear message, so
+the weather card renders "no data" cleanly and the next request can retry.
 """
 import pytest
 
@@ -36,9 +40,13 @@ def test_weather_degrades_when_all_providers_fail(auth_client, monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["source"] == "unavailable"
-    assert body["days"][0]["condition"] == "Data unavailable"
+    # Improved degradation: return an empty forecast list (not a single all-null
+    # day) plus a clear message, so the weather card renders "no data" cleanly
+    # instead of pretending one day exists with every field null.
+    assert body["days"] == []
     assert body["action"] == "none"
     assert body["alerts"]
+    assert any("temporarily unavailable" in a or "refresh" in a for a in body["alerts"])
     _memory_store.clear()
 
 
@@ -66,6 +74,7 @@ def test_weather_normal_path_unchanged(auth_client, monkeypatch):
     body = resp.json()
     assert body["days"][0]["temp_c"] == 25.0
     assert body["days"][0]["condition"] == "Clear sky"
+    # When providers answer, the degraded 'unavailable' path is not taken.
     assert "source" not in body or body.get("source") != "unavailable"
     _memory_store.clear()
 
@@ -91,4 +100,6 @@ def test_weather_with_location_param_still_labels(auth_client, monkeypatch):
     body = resp.json()
     assert body["location"] == "Pune City Subdistrict"
     assert body["source"] == "unavailable"
+    # Improved degradation: empty forecast on provider failure.
+    assert body["days"] == []
     _memory_store.clear()
