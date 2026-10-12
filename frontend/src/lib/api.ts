@@ -62,9 +62,11 @@ async function tryRefresh(): Promise<string | null> {
         if (!raw) return null;
         const session = JSON.parse(raw);
         if (!session?.refresh_token) return null;
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        if (!supabaseUrl) return null;
 
         const res = await axios.post(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,
+          `${supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
           { refresh_token: session.refresh_token },
           { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "" } }
         );
