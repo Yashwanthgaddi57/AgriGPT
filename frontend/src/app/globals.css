@@ -104,6 +104,30 @@
   }
 }
 
+/* Dashboard sidebar: on short screens (small phones) flex children refuse
+   to shrink below their content height, pushing the profile/Sign out
+   footer beyond the fixed drawer's viewport height into unreachable
+   overflow. Tailwind (min-h-0/shrink-0) alone proved insufficient on some
+   mobile devices, so enforce the layout with plain CSS that always wins:
+   drawer capped at viewport height, nav scrolls internally, whole drawer
+   scrolls as fallback. Selector targets whichever aside holds the fixed
+   drawer (inset-y-0 appears only in the sidebar classes). */
+aside[class*="inset-y-0"] {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden auto; /* nav scrolls first; drawer itself as fallback */
+  -webkit-overflow-scrolling: touch;
+}
+aside[class*="inset-y-0"] > nav {
+  min-height: 0 !important;
+  flex: 1 1 0 !important;
+  overflow-y: auto !important;
+  touch-action: pan-y;
+}
+aside[class*="inset-y-0"] > div {
+  flex: 0 0 auto;
+}
+
 /* Respect users who disable motion (prompt §36). framer-motion also honors
    this via its `reduceMotion` config, but raw CSS animations must be
    paused too so they don't fire on devices set to "reduce motion". */
