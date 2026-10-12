@@ -125,6 +125,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
+  // Razorpay Checkout locks body scrolling (overflow:hidden) while its modal
+  // is open and unlocks on normal close paths — but a modal killed mid-flow
+  // (tab killed, bug, refresh) leaves the lock stuck, and on mobile that
+  // freezes the entire page, making the drawer/Sign out unreachable.
+  // Reset it whenever a dashboard page mounts or becomes visible again.
+  React.useEffect(() => {
+    const unlock = () => {
+      const style = document.body.style;
+      if (style.overflow === "hidden" && !document.querySelector(".razorpay-container,.rzp-modal")) {
+        style.overflow = "";
+        style.position = "";
+        style.top = "";
+        style.width = "";
+        style.touchAction = "";
+      }
+      const html = document.documentElement.style;
+      if (html.overflow === "hidden" && !document.querySelector(".razorpay-container,.rzp-modal")) {
+        html.overflow = "";
+        html.touchAction = "";
+      }
+    };
+    unlock();
+    document.addEventListener("visibilitychange", unlock);
+    return () => document.removeEventListener("visibilitychange", unlock);
+  }, [pathname]);
+
   // Live farm location — the auth profile is fetched once, so read the
   // resolver instead to reflect a location the farmer just allowed/saved.
   const { data: myLocation } = useMyLocation();
