@@ -62,6 +62,24 @@ def test_checkout_501_when_not_configured(auth_client):
     assert resp.status_code == 501
 
 
+def test_checkout_returns_401_for_gateway_auth_failure(auth_client, razorpay_keys, monkeypatch):
+    from app.core import razorpay_client
+
+    class UnauthorizedGateway:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, *args, **kwargs):
+            return razorpay_client.httpx.Response(401, text="unauthorized")
+
+    monkeypatch.setattr(razorpay_client.httpx, "AsyncClient", lambda timeout: UnauthorizedGateway())
+    resp = auth_client.post("/api/v1/subscription/checkout", json={"plan": "pro"})
+    assert resp.status_code == 401
+
+
 def test_checkout_rejects_free_plan(auth_client, razorpay_keys):
     resp = auth_client.post("/api/v1/subscription/checkout", json={"plan": "free"})
     assert resp.status_code == 422
@@ -77,7 +95,7 @@ def test_checkout_creates_order_and_payment_row(auth_client, sample_user, db_ses
     resp = auth_client.post("/api/v1/subscription/checkout", json={"plan": "pro"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["amount_inr"] == 29900  # ₹299 from the server-side catalog
+    assert body["amount"] == 29900  # ₹299 from the server-side catalog, in paise
     assert body["currency"] == "INR"
     assert body["key_id"] == "rzp_test_key"  # public key only, never the secret
 
@@ -108,9 +126,14 @@ def test_verify_bad_signature_422(auth_client, sample_user, db_session, razorpay
             "razorpay_signature": "0" * 64,
         },
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 400
     row = db_session.query(Payment).filter(Payment.razorpay_order_id == order_id).one()
     assert row.status == "failed"
+
+
+def test_verify_rejects_missing_fields_with_400(auth_client, razorpay_keys):
+    resp = auth_client.post("/api/v1/subscription/verify", json={"razorpay_order_id": "order_x"})
+    assert resp.status_code == 400
 
 
 def test_verify_not_captured_422(

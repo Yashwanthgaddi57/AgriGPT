@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError as PydanticValidationError
 
 from app.core import razorpay_client
 from app.core.config import settings
@@ -63,16 +63,16 @@ class CheckoutRequest(BaseModel):
 
 class CheckoutResponse(BaseModel):
     order_id: str
-    amount_inr: int
+    amount: int
     currency: str
     key_id: str
     plan: str
 
 
 class VerifyRequest(BaseModel):
-    razorpay_order_id: str
-    razorpay_payment_id: str
-    razorpay_signature: str
+    razorpay_order_id: str = Field(min_length=1)
+    razorpay_payment_id: str = Field(min_length=1)
+    razorpay_signature: str = Field(min_length=1)
 
 
 def _plan_amount_paise(plan: str) -> int:
@@ -81,7 +81,10 @@ def _plan_amount_paise(plan: str) -> int:
     price = meta.get("price_inr")
     if not price:  # None (custom-priced) or 0 (free) — not purchasable
         raise ValidationError("That plan is not available for online purchase.")
-    return int(price) * 100
+    amount_paise = int(price) * 100
+    if amount_paise < 100:
+        raise ValidationError("The minimum payment amount is 100 paise.")
+    return amount_paise
 
 
 def _activate_plan(db: Session, user: User, plan: str) -> None:
@@ -136,7 +139,7 @@ async def checkout(payload: CheckoutRequest, user: CurrentUser, db: Session = De
 
     return CheckoutResponse(
         order_id=order["id"],
-        amount_inr=amount,
+        amount=amount,
         currency="INR",
         key_id=razorpay_client.public_key_id(),
         plan=payload.plan,
@@ -144,7 +147,7 @@ async def checkout(payload: CheckoutRequest, user: CurrentUser, db: Session = De
 
 
 @router.post("/verify")
-async def verify(payload: VerifyRequest, user: CurrentUser, db: Session = Depends(get_db)):
+async def verify(request: Request, user: CurrentUser, db: Session = Depends(get_db)):
     """Verify a Razorpay checkout result and activate the paid plan.
 
     Triple check before activation:
@@ -152,6 +155,20 @@ async def verify(payload: VerifyRequest, user: CurrentUser, db: Session = Depend
       2. HMAC-SHA256(order|payment, key_secret) == signature (constant-time).
       3. Razorpay's own API says the payment is `captured`.
     """
+    try:
+        payload = VerifyRequest.model_validate(await request.json())
+    except (ValueError, PydanticValidationError):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": {
+                    "code": "BadRequest",
+                    "detail": "Missing or invalid payment verification fields.",
+                    "path": request.url.path,
+                }
+            },
+        )
+
     if not razorpay_client.is_configured():
         raise NotFoundError("Payments are not configured.")
 
@@ -172,7 +189,16 @@ async def verify(payload: VerifyRequest, user: CurrentUser, db: Session = Depend
         row.status = "failed"
         db.commit()
         logger.warning("Signature verification failed for order %s (user %s)", payload.razorpay_order_id, user.id)
-        raise ValidationError("Payment verification failed. If you were charged, contact support.")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": {
+                    "code": "BadRequest",
+                    "detail": "Payment verification failed. If you were charged, contact support.",
+                    "path": request.url.path,
+                }
+            },
+        )
 
     # Second opinion from the gateway: only a captured payment activates.
     pay = await razorpay_client.fetch_payment(payload.razorpay_payment_id)

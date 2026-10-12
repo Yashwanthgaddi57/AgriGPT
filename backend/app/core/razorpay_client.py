@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.core.exceptions import AuthError
 
 logger = logging.getLogger("app.payments.razorpay")
 
@@ -38,7 +39,7 @@ def _auth() -> tuple[str, str]:
 
 
 async def create_order(amount_paise: int, receipt: str, notes: dict[str, str] | None = None) -> dict[str, Any]:
-    """Create a Razorpay order. Raises RuntimeError on gateway rejection."""
+    """Create a Razorpay order. Raises AuthError for rejected credentials."""
     async with httpx.AsyncClient(timeout=20) as client:
         resp = await client.post(
             ORDERS_URL,
@@ -52,6 +53,8 @@ async def create_order(amount_paise: int, receipt: str, notes: dict[str, str] | 
         )
     if resp.status_code >= 400:
         logger.warning("Razorpay order creation failed: HTTP %s %s", resp.status_code, resp.text[:300])
+        if resp.status_code == 401:
+            raise AuthError("Payment gateway authentication failed. Check the Razorpay API keys.")
         raise RuntimeError("Payment gateway rejected the order. Please try again in a moment.")
     return resp.json()
 

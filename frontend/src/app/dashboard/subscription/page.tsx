@@ -47,7 +47,7 @@ export default function SubscriptionPage() {
       const status = (e as { response?: { status?: number } })?.response?.status;
       const detail =
         (e as { response?: { data?: { error?: { detail?: string } } } })?.response?.data?.error
-          ?.detail ?? "Could not start the payment. Please try again.";
+          ?.detail ?? (e instanceof Error ? e.message : "Could not start the payment. Please try again.");
       if (status === 501) {
         toast({ title: "Payments coming soon", description: detail });
       } else {
@@ -60,7 +60,7 @@ export default function SubscriptionPage() {
 
   const openRazorpayCheckout = (order: {
     order_id: string;
-    amount_inr: number;
+    amount: number;
     currency: string;
     key_id: string;
     plan: string;
@@ -75,7 +75,7 @@ export default function SubscriptionPage() {
         if (!w.Razorpay) return reject(new Error("Razorpay script did not load."));
         const rzp = new w.Razorpay({
           key: order.key_id,
-          amount: order.amount_inr,
+          amount: order.amount,
           currency: order.currency,
           name: "AgriGPT",
           description: `AgriGPT ${order.plan} plan`,
@@ -98,11 +98,11 @@ export default function SubscriptionPage() {
                 (e as { response?: { data?: { error?: { detail?: string } } } })?.response?.data?.error
                   ?.detail ?? "Verification failed. If you were charged, contact support.";
               toast({ title: "Verification failed", description: detail, variant: "destructive" });
-              reject(e);
+              resolve();
             }
           },
           modal: {
-            ondismiss: () => reject(new Error("Payment cancelled.")),
+            ondismiss: resolve,
           },
         });
         rzp.on("payment.failed", () =>
@@ -114,7 +114,12 @@ export default function SubscriptionPage() {
       // Load the Checkout script once; reuse it on subsequent upgrades.
       const existing = document.querySelector<HTMLScriptElement>("script[src='https://checkout.razorpay.com/v1/checkout.js']");
       if (existing) {
-        start();
+        if (w.Razorpay) {
+          start();
+        } else {
+          existing.addEventListener("load", start, { once: true });
+          existing.addEventListener("error", () => reject(new Error("Could not load Razorpay. Check your connection.")), { once: true });
+        }
         return;
       }
       const script = document.createElement("script");
