@@ -170,7 +170,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b px-5">
+        <div className="flex h-16 shrink-0 items-center justify-between border-b px-5">
           <Link href="/dashboard" className="flex items-center gap-2 font-bold">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-leaf-100 text-leaf-700">
               <Sprout />
@@ -181,12 +181,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <X className="h-5 w-5" />
           </button>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
           {nav.map((item) => (
             <NavLink key={item.href} {...item} label={t(item.label)} onNavigate={() => setSidebarOpen(false)} />
           ))}
         </nav>
-        <div className="border-t p-3">
+        <div className="shrink-0 border-t p-3">
           <Link
             href="/dashboard/profile"
             className="mb-2 flex items-center gap-3 rounded-lg p-2 hover:bg-accent"
