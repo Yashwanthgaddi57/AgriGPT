@@ -25,6 +25,7 @@ REGISTER_BODY = {
 def local_mode(db_session, monkeypatch):
     """Force the local-auth path (it is the default, but be explicit)."""
     monkeypatch.setattr(auth_router, "local_auth_enabled", lambda: True)
+    monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
     monkeypatch.setattr(settings, "EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS", 0)
 
 
