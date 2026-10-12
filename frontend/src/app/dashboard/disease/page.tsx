@@ -51,8 +51,19 @@ export default function DiseasePage() {
 
   const onFile = (f: File | null) => {
     setFile(f);
-    if (f) setPreview(URL.createObjectURL(f));
+    setPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return f ? URL.createObjectURL(f) : null;
+    });
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (preview) {
+        URL.revokeObjectURL(preview);
+      }
+    };
+  }, [preview]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -27,7 +27,18 @@ async def analyze(
     check_quota(db, user, "disease_scans")
     # P0 IDOR fix: a client-supplied farm_id must belong to THIS user.
     owned = resolve_owned_farm(db, user, farm_id)
-    content = await image.read()
+
+    # Safe chunked reading to prevent memory exhaustion DoS
+    max_bytes = 10 * 1024 * 1024
+    chunk_size = 64 * 1024
+    buffer = bytearray()
+    while chunk := await image.read(chunk_size):
+        buffer.extend(chunk)
+        if len(buffer) > max_bytes:
+            from app.core.exceptions import ValidationError
+            raise ValidationError("Image exceeds 10MB limit")
+    content = bytes(buffer)
+
     report = await DiseaseService(db).analyze(
         user_id=str(user.id),
         crop=crop,
