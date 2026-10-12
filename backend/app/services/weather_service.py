@@ -240,10 +240,23 @@ class WeatherService:
                     days = parse_forecast(raw)
                 except Exception as e:
                     logger.warning("Open-Meteo forecast failed (%s); trying OpenWeatherMap", e)
-                    days = await openweather_client.get_forecast(lat, lon, 7)
+                    try:
+                        days = await openweather_client.get_forecast(lat, lon, 7)
+                    except Exception as owm_err:
+                        # Both providers down: degraded — raise so the router
+                        # serves the fail-soft response and nothing is cached.
+                        logger.warning("OpenWeatherMap also failed: %s", owm_err)
+                        days = []
+                        raise ExternalServiceError(
+                            f"Weather providers unavailable: Open-Meteo: {e}; OWM: {owm_err}"
+                        ) from owm_err
                 rev = await geocode_reverse(lat, lon)
                 loc = (rev and (rev.get("village") or rev.get("district"))) or "your location"
-                cache_set(cache_key, {"location": loc, "days": days}, ttl_seconds=1800)
+                if days:
+                    # Same rule as fetch_weather_days: never cache an empty
+                    # forecast, or one provider blip pins the dashboard's
+                    # "Forecast unavailable" state for the whole TTL.
+                    cache_set(cache_key, {"location": loc, "days": days}, ttl_seconds=1800)
         else:
             loc, days = await fetch_weather_days(location, 7)
         ai = await _ai_advice(loc, days)
