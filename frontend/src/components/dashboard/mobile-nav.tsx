@@ -63,6 +63,16 @@ export function MobileBottomNav({ pathname }: { pathname: string }) {
     setMoreOpen(false);
   }, [pathname]);
 
+  // Accessibility: close on Escape key
+  React.useEffect(() => {
+    if (!moreOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMoreOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [moreOpen]);
+
   const moreActive = MORE.some((m) => isActive(pathname, m.href, m.href === "/dashboard"));
 
   return (

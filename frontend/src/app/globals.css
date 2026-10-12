@@ -32,28 +32,27 @@
     --font-arcadiadisplay: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
   }
 
-  /* Light theme is the only theme; .dark mirrors it so any stray
-     `dark:` class or legacy toggle stays harmless. */
+  /* Dark mode: deep slate canvas, elevated card surfaces, vibrant emerald primary */
   .dark {
-    --background: 240 25% 98%;
-    --foreground: 240 12% 13%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 12% 13%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 12% 13%;
-    --primary: 142 72% 29%;
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 142 70% 45%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 14% 93%;
-    --secondary-foreground: 240 12% 13%;
-    --muted: 240 14% 93%;
-    --muted-foreground: 240 6% 42%;
-    --accent: 240 14% 93%;
-    --accent-foreground: 240 12% 13%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 14% 89%;
-    --input: 240 12% 84%;
-    --ring: 142 72% 29%;
+    --secondary: 217 33% 15%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 40%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 142 70% 45%;
   }
 
   * {

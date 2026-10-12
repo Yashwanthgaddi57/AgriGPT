@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Script from "next/script";
 import { Check, Crown, Info, Loader2 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -131,6 +132,7 @@ export default function SubscriptionPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
       <div>
         <h1 className="font-display text-[22px] font-medium leading-tight tracking-[0.32px]">Subscription</h1>
         <p className="text-sm text-muted-foreground">

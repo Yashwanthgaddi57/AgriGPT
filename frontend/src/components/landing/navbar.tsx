@@ -6,6 +6,7 @@ import { Menu, Sprout, X } from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const links = [
   { href: "#features", label: "Features" },
@@ -60,6 +61,7 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle />
           <Button variant="ghost" asChild>
             <Link href="/auth/login">Sign in</Link>
           </Button>
@@ -68,13 +70,16 @@ export function Navbar() {
           </Button>
         </div>
 
-        <button
-          className="md:hidden"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Toggle menu"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-lg border bg-card/60 text-foreground"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {open && (

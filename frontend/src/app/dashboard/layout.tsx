@@ -43,6 +43,7 @@ import {
   useNotifications,
 } from "@/hooks/use-api";
 import { LangSwitch, useLang } from "@/lib/i18n";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { formatLocationLabel } from "@/lib/location-label";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -258,6 +259,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div className="flex items-center gap-2">
             <LangSwitch />
+            <ThemeToggle />
             <NotificationBell />
           </div>
         </header>

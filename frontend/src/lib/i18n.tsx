@@ -190,28 +190,35 @@ export function useLang() {
   return React.useContext(LangContext);
 }
 
-/** Small language switcher for the dashboard header. */
+/** Accessible language switcher for dashboard and header navigation. */
 export function LangSwitch() {
   const { lang, setLang } = useLang();
-  const options: { value: Lang; label: string }[] = [
-    { value: "en", label: "EN" },
-    { value: "te", label: "తె" },
-    { value: "hi", label: "हिं" },
-    { value: "ta", label: "த" },
-    { value: "kn", label: "ಕ" },
-    { value: "mr", label: "म" },
+  const options: { value: Lang; label: string; name: string }[] = [
+    { value: "en", label: "EN", name: "English" },
+    { value: "hi", label: "हिं", name: "Hindi" },
+    { value: "te", label: "తె", name: "Telugu" },
+    { value: "ta", label: "த", name: "Tamil" },
+    { value: "kn", label: "ಕ", name: "Kannada" },
+    { value: "mr", label: "म", name: "Marathi" },
   ];
   return (
-    <div className="flex items-center gap-0.5 rounded-full border p-0.5">
+    <div
+      role="group"
+      aria-label="Language options"
+      className="flex items-center gap-1 rounded-full border bg-card/60 p-0.5 backdrop-blur-sm"
+    >
       {options.map((o) => (
         <button
           key={o.value}
           onClick={() => setLang(o.value)}
-          className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
-            lang === o.value ? "bg-leaf-600 text-white" : "text-muted-foreground hover:text-foreground"
+          className={`relative flex min-h-[34px] min-w-[32px] items-center justify-center rounded-full px-2 py-1 text-xs font-medium transition-all ${
+            lang === o.value
+              ? "bg-leaf-600 text-white shadow-sm ring-1 ring-leaf-500"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground"
           }`}
-          aria-label={`Language: ${o.label}`}
-          title={`Language: ${o.label}`}
+          aria-label={`Switch language to ${o.name}`}
+          aria-pressed={lang === o.value}
+          title={o.name}
         >
           {o.label}
         </button>
