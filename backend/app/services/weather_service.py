@@ -83,10 +83,12 @@ async def fetch_weather_days(
             last_error = f"Open-Meteo: {last_error}; OpenWeatherMap: {owm_err}"
 
     result = {"location": place_name, "days": days_out}
-    # Cache the result (even an empty one) so repeated rapid requests don't
-    # hammer providers during an outage; the 30-min TTL means the next request
-    # will naturally retry after refresh.
-    cache_set(cache_key, result, ttl_seconds=1800)
+    if days_out:
+        # Cache successful results for 30 min so rapid repeat requests don't
+        # re-fetch. An EMPTY result is NOT cached: a single provider blip
+        # would otherwise pin the dashboard's "Forecast unavailable" state
+        # for the full TTL instead of retrying on the next request.
+        cache_set(cache_key, result, ttl_seconds=1800)
     return place_name, days_out
 
 
