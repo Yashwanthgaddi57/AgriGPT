@@ -26,6 +26,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadingWeather } from "@/components/loading-weather";
 import {
   Dialog,
   DialogContent,
@@ -178,7 +179,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!initialized || (loading && !user)) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-leaf-200 border-t-leaf-600" />
+        <LoadingWeather className="min-h-screen" />
       </div>
     );
   }

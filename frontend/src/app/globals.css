@@ -128,6 +128,120 @@ aside[class*="inset-y-0"] > div {
   flex: 0 0 auto;
 }
 
+/* Dashboard boot loader: rain cloud over sprout. Pure CSS so it appears
+   instantly while the app shell hydrates; reduced-motion users get a
+   static version. */
+.agri-load {
+  --agri-skyc: #dbeafe;
+}
+.agri-cloud {
+  width: 74px;
+  height: 28px;
+  animation: agri-float 2.6s ease-in-out infinite;
+}
+.agri-cloud__puff {
+  position: absolute;
+  bottom: 0;
+  border-radius: 9999px;
+  background: #f8fafc;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+.agri-cloud__puff--m {
+  width: 38px;
+  height: 34px;
+  left: 18px;
+  bottom: 8px;
+}
+.agri-cloud__puff--l {
+  width: 30px;
+  height: 26px;
+  left: 2px;
+}
+.agri-cloud__puff--r {
+  width: 30px;
+  height: 26px;
+  right: 2px;
+}
+.agri-drop {
+  top: 34px;
+  width: 4px;
+  height: 9px;
+  border-radius: 2px 2px 4px 4px;
+  background: linear-gradient(#7dd3fc, #38bdf8);
+  opacity: 0;
+  animation: agri-rain 1.1s linear infinite;
+}
+.agri-sprout {
+  width: 26px;
+  height: 26px;
+  animation: agri-grow 2.6s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+.agri-sprout__stem {
+  position: absolute;
+  bottom: 6px;
+  left: 11px;
+  width: 4px;
+  height: 16px;
+  border-radius: 3px;
+  background: #16a349;
+  transform-origin: bottom center;
+}
+.agri-sprout__leaf {
+  position: absolute;
+  width: 14px;
+  height: 9px;
+  background: #22c55e;
+  border-radius: 9999px 9999px 9999px 2px;
+  transform-origin: bottom left;
+}
+.agri-sprout__leaf--l {
+  bottom: 20px;
+  left: 4px;
+  transform: rotate(-34deg);
+}
+.agri-sprout__leaf--r {
+  bottom: 20px;
+  right: 4px;
+  border-radius: 9999px 9999px 2px 9999px;
+  transform: rotate(34deg) scaleX(-1);
+}
+.agri-sprout__seed {
+  position: absolute;
+  bottom: 0;
+  left: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #a16207;
+}
+.agri-soil {
+  width: 46px;
+  height: 10px;
+  border-radius: 9999px;
+  background: #78503c;
+}
+
+@keyframes agri-float {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -5px); }
+}
+@keyframes agri-rain {
+  0% { transform: translateY(0); opacity: 0; }
+  22% { opacity: 0.9; }
+  100% { transform: translateY(34px); opacity: 0; }
+}
+@keyframes agri-grow {
+  0%, 100% { transform: scaleY(0.9); }
+  50% { transform: scaleY(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agri-cloud { animation: none; }
+  .agri-drop { display: none; }
+  .agri-sprout { animation: none; }
+}
+
 /* Respect users who disable motion (prompt §36). framer-motion also honors
    this via its `reduceMotion` config, but raw CSS animations must be
    paused too so they don't fire on devices set to "reduce motion". */
